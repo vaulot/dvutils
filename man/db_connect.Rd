@@ -7,7 +7,7 @@
 db_connect(db_info)
 }
 \arguments{
-\item{db_info}{list  (default.file= ,groups= ,dbname= )}
+\item{db_info}{list(default.file= ,groups= ,dbname= )}
 }
 \value{
 A database connection
@@ -17,4 +17,5 @@ All connections parameters are stored into a my.conf file
 }
 \examples{
 pr2_con <- db_connect(db_info("pr2_local"))
+test_con <- db_connect(list(default.file="my.cnf", groups="root" , dbname= "test"))
 }

@@ -14,8 +14,8 @@ TRUE if successful
 \description{
 Does the following :
 \itemize{
-\item Transforms <i>...</i> tag to \textit
-\item Replace "<="  (found in the title of some papers) by Tex symbol (\leq)
+\item Transforms <i>...</i> tag to textit
+\item Replace "<="  (found in the title of some papers) by Tex symbol (leq)
 \item Put Vaulot in bold -  if dv_bold=TRUE
 }
 
