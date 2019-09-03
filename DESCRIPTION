@@ -1,7 +1,7 @@
 Package: dvutils
 Type: Package
 Title: A set of utilities
-Version: 0.1.5
+Version: 1.0.0
 Author: Daniel Vaulot
 Maintainer: Daniel Vaulot <vaulot@gmail.com>
 Description: Set of utilities for :        
@@ -21,6 +21,7 @@ Imports:
   fs,
   genbankr,
   ggplot2,
+  ggmap,
   leaflet,
   lubridate,
   openxlsx,

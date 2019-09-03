@@ -65,8 +65,8 @@ filename_change_ext <- function (filename, new_ext){
 #' @description
 #' Does the following :
 #'
-#' * Transforms <i>...</i> tag to \textit
-#' * Replace "<="  (found in the title of some papers) by Tex symbol (\leq)
+#' * Transforms <i>...</i> tag to textit
+#' * Replace "<="  (found in the title of some papers) by Tex symbol (leq)
 #' * Put Vaulot in bold -  if dv_bold=TRUE
 #'
 #' Note: the bib file must be exported using the "Escape Latex character" setting OFF
