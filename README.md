@@ -6,9 +6,10 @@ A set of R utilities developped by Daniel Vaulot (vaulot@gmail.com)
 * Databases
 * Bioinfo
     * interface with Phyloseq
-    * interface with dada2
+    * interface with dada2 (taxonomy assignation with the Wang assigner)
     * fasta file read and write
     * Genbank parsing
+    * reformating and analysis of BLAST output
 * Interface and management to pecific databases
     * PR2 (18S rRNA sequences)
     * MetaPR2 (metabarcodes)
@@ -16,8 +17,17 @@ A set of R utilities developped by Daniel Vaulot (vaulot@gmail.com)
 
 # Installation
 
+You need to install a few packages from Bioconductor and also the pr2database package (used for analysis of BLAST files)
+
 ``` r
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("dada2")
+BiocManager::install("genbankr")
+
 install.packages(devtools)
+devtools::install_github("pr2database/pr2database")
 devtools::install_github("vaulot/dvutils")
 ```
 
