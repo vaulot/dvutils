@@ -1,0 +1,43 @@
+Package: dvutils
+Type: Package
+Title: A set of utilities
+Version: 0.1.5
+Author: Daniel Vaulot
+Maintainer: Daniel Vaulot <vaulot@gmail.com>
+Description: Set of utilities for :        
+    * Bioinformatics : BLAST processing, PR2 maintenance, GenBank access
+    * Database utilies
+    * Plotting
+License: No licence
+Encoding: UTF-8
+LazyData: true
+Imports:
+  Biostrings,
+  cowplot,
+  dada2,
+  DBI,
+  dbplyr,
+  dplyr,
+  fs,
+  genbankr,
+  ggplot2,
+  leaflet,
+  lubridate,
+  openxlsx,
+  pr2database,
+  purrr,
+  readr, 
+  readxl,
+  rentrez, 
+  reutils,
+  RMySQL,
+  R.utils,
+  rworldmap,
+  stringr, 
+  tibble,
+  tidyr,
+  treemap,
+  viridis
+RoxygenNote: 6.1.1
+Suggests: testthat
+Roxygen: list(markdown = FALSE)
