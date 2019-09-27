@@ -518,7 +518,8 @@ phyloseq_normalize_median <- function (ps) {
                    names_to = "file_code",
                    values_to = "n_reads",
                    values_drop_na = TRUE) %>%
-      filter(n_reads != 0)
+      filter(n_reads != 0) %>%
+      filter(!is.na(n_reads))
 
   # See https://github.com/joey711/phyloseq/issues/983
     taxo_df <- as.data.frame(ps@tax_table@.Data) %>%
