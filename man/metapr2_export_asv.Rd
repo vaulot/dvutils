@@ -38,7 +38,13 @@ Exports a range of file and format.
 \item fasta file with the full taxonomy or just the genus level
 \item excel file with the full table of the asv and metadata
 \item phyloseq file (better when only selecting a single data set)
-Returns a dataframe with all the asv and the stations and read numbers
+}
+
+Returns a list with 3 elements
+\itemize{
+\item df = dataframe with all the asv and the stations and read numbers
+\item ps = phyloseq object
+\item fasta = df with 2 columns seq_name and sequence
 }
 }
 \examples{

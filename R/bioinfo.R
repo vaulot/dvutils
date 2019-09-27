@@ -453,9 +453,10 @@ phyloseq_import_mothur <- function(file_mothur, file_samples, n_taxo_levels){
 #' @md
 phyloseq_filter_autotrophic_taxa <- function(ps) {
 
-  ps <- subset_taxa(ps, (division %in% c("Chlorophyta", "Dinophyta", "Cryptophyta",
-                                                 "Haptophyta", "Ochrophyta", "Cercozoa")) &
-                                              !(class %in% c("Syndiniales", "Sarcomonadea")))
+  ps <- subset_taxa(ps,  (division %in% c("Chlorophyta", "Cryptophyta", "Rhodophyta",
+                                          "Haptophyta", "Ochrophyta")) |
+                          ((division ==  "Dinoflagellata") & (class != "Syndiniales")) |
+                          (class == "Filosa-Chlorarachnea"))
 }
 
 # phyloseq_filter_abundant_taxa : Filter a phyloseq table for abundant taxa ------------------------------
@@ -477,6 +478,100 @@ phyloseq_filter_abundant_taxa <- function(ps, fraction_min=0.10) {
 
   ps <- filter_taxa(ps, function(x) sum(x > total*fraction_min) > 0, TRUE)
 }
+
+# phyloseq_normalize_median : Normalize to the median number of reads ------------------------------
+
+#' @title Normalize to the median number of reads
+#' @description
+#' @param ps phyloseq object
+#' @return
+#' ps object normalized
+#' @examples
+#' ps_norm <- phyloseq_normalize_median(ps)
+#' @export
+#' @md
+phyloseq_normalize_median <- function (ps) {
+  ps_median = median(sample_sums(ps))
+  normalize_median = function(x, t=ps_median) (if(sum(x) > 0){ t * (x / sum(x))} else {x})
+  ps = transform_sample_counts(ps, normalize_median)
+  cat(str_c("\n========== \n") )
+  print(ps)
+  cat(sprintf("\n==========\nThe median number of reads used for normalization is  %.0f", ps_median))
+  return(ps)
+}
+
+# phyloseq_transform_to_long : Normalize to the median number of reads ------------------------------
+
+#' @title Transform a phyloseq object into a long data frame
+#' @description
+#' @param ps phyloseq object
+#' @return
+#' Long dataframe with the metadata but without zero, nor NA
+#' @examples
+#' df <- phyloseq_transform_to_long(ps)
+#' @export
+#' @md
+  phyloseq_transform_to_long <- function(ps) {
+    otu_df <- as.data.frame(ps@otu_table@.Data) %>%
+      rownames_to_column(var = "asv_code") %>%
+      pivot_longer(cols = -asv_code,
+                   names_to = "file_code",
+                   values_to = "n_reads",
+                   values_drop_na = TRUE) %>%
+      filter(n_reads != 0)
+
+  # See https://github.com/joey711/phyloseq/issues/983
+    taxo_df <- as.data.frame(ps@tax_table@.Data) %>%
+      rownames_to_column(var = "asv_code")
+
+    otu_df <- left_join(taxo_df, otu_df)
+
+    metadata_df <- as.data.frame(ps@sam_data@.Data) %>%
+      rownames_to_column(var = "file_code")
+
+    otu_df <- left_join(otu_df, metadata_df, by = c("file_code"))
+
+    return(otu_df)
+
+  }
+
+# phyloseq_long_treemap : Do a treemap based on the long version of a phyloseq file ------
+
+#' @title Do a treemap based on the long version of a phyloseq file
+#' @description Plot the treemaps and returns a df with the summary of the data
+#' @param df Data frame obtained from a phyloseq file using the function phyloseq_transform_to_long
+#' @param group1 first grouping level (do not quote)
+#' @param group2 second grouping level (do not quote)
+#' @param title Title for the treemap
+#' @return
+#' Plot the treemap
+#' Dataframe with the summarized data
+#' @examples
+#' df <- phyloseq_long_treemap(phyloseq_long, division, class, "Singapore strait")
+#' @export
+#' @md
+ phyloseq_long_treemap <- function(df, group1, group2, title) {
+
+     df <- df %>%
+       group_by({{group1}}, {{group2}}) %>%
+       summarise(n_reads=sum(n_reads, na.rm = TRUE))
+     g_treemap <- ggplot(df, aes(area = n_reads,
+                                 fill = {{group2}},
+                                 label = {{group2}},
+                                 subgroup = {{group1}})) +
+        ggtitle(title) +
+        treemapify::geom_treemap() +
+        treemapify::geom_treemap_subgroup_border() +
+        treemapify::geom_treemap_text(colour = "black", place = "topleft", reflow = T,
+                                      padding.x =  grid::unit(3, "mm"),
+                                      padding.y = grid::unit(3, "mm") ) +
+        treemapify::geom_treemap_subgroup_text(place = "centre", grow = T, alpha = 0.5, colour =
+                             "white", fontface = "italic", min.size = 0) +
+        scale_fill_viridis_d() +
+        theme(legend.position="none", plot.title = element_text(size = 16, face = "bold"))
+     print(g_treemap)
+     return(df)
+ }
 
 # get_primer_position : get primer position ----------------------------------------------
 

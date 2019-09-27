@@ -9,7 +9,11 @@
 #'    * fasta file with the full taxonomy or just the genus level
 #'    * excel file with the full table of the asv and metadata
 #'    * phyloseq file (better when only selecting a single data set)
-#' Returns a dataframe with all the asv and the stations and read numbers
+#'
+#' Returns a list with 3 elements
+#'    * df = dataframe with all the asv and the stations and read numbers
+#'    * ps = phyloseq object
+#'    * fasta = df with 2 columns seq_name and sequence
 #' @param taxo_level The taxonomic level for selection (do not quote), e.g. class or genus
 #' @param taxo_name  The name of the taxonomic level selected, e.g. Chlorophyta
 #' @param boot_level The taxonomic level for bootstrap filtering (do not quote), e.g. class_boot or genus_boot
@@ -92,13 +96,13 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
  if (export_xls) openxlsx::write.xlsx(asv_set, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name, ".xlsx"))
 
- if (export_phyloseq) {
+
 
    ## Create the samples, otu and taxonomy tables
 
   # 1. samples table : row names are labelled by file_code
   samples_df <- asv_set %>%
-    select(file_code:metadata_remark) %>%
+    select(file_code:metadata_remark, -n_reads) %>%
     distinct(file_code, .keep_all = TRUE) %>%
     column_to_rownames(var = "file_code")
 
@@ -129,10 +133,11 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
   phyloseq_asv <- phyloseq::phyloseq(OTU, TAX, samples)
 
+ if (export_phyloseq) {
   saveRDS(phyloseq_asv, file = str_c(directory, "phyloseq_metapr2_asv_set_", dataset_id_char ,"_", taxo_name, ".rda") )
 
  }
 
- return(asv_set)
+ return(list(df=asv_set, ps=phyloseq_asv, fasta=asv_fasta))
 
   }
