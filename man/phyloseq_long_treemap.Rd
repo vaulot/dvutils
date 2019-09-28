@@ -17,11 +17,15 @@ phyloseq_long_treemap(df, group1, group2, title)
 }
 \value{
 Plot the treemap
-Dataframe with the summarized data
+Returns a list made of 2 elements
+\itemize{
+\item gg = the treemap as ggplot
+\item df =  a dataframe with the summarized data
+}
 }
 \description{
-Plot the treemaps and returns a df with the summary of the data
+Plot the treemaps and returns a list with a ggplot and a df with the summary of the data
 }
 \examples{
-df <- phyloseq_long_treemap(phyloseq_long, division, class, "Singapore strait")
+my_list <- phyloseq_long_treemap(phyloseq_long, division, class, "Singapore strait")
 }

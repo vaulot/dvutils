@@ -539,16 +539,18 @@ phyloseq_normalize_median <- function (ps) {
 # phyloseq_long_treemap : Do a treemap based on the long version of a phyloseq file ------
 
 #' @title Do a treemap based on the long version of a phyloseq file
-#' @description Plot the treemaps and returns a df with the summary of the data
+#' @description Plot the treemaps and returns a list with a ggplot and a df with the summary of the data
 #' @param df Data frame obtained from a phyloseq file using the function phyloseq_transform_to_long
 #' @param group1 first grouping level (do not quote)
 #' @param group2 second grouping level (do not quote)
 #' @param title Title for the treemap
 #' @return
 #' Plot the treemap
-#' Dataframe with the summarized data
+#' Returns a list made of 2 elements
+#'   * gg = the treemap as ggplot
+#'   * df =  a dataframe with the summarized data
 #' @examples
-#' df <- phyloseq_long_treemap(phyloseq_long, division, class, "Singapore strait")
+#' my_list <- phyloseq_long_treemap(phyloseq_long, division, class, "Singapore strait")
 #' @export
 #' @md
  phyloseq_long_treemap <- function(df, group1, group2, title) {
@@ -556,7 +558,7 @@ phyloseq_normalize_median <- function (ps) {
      df <- df %>%
        group_by({{group1}}, {{group2}}) %>%
        summarise(n_reads=sum(n_reads, na.rm = TRUE))
-     g_treemap <- ggplot(df, aes(area = n_reads,
+     gg <- ggplot(df, aes(area = n_reads,
                                  fill = {{group2}},
                                  label = {{group2}},
                                  subgroup = {{group1}})) +
@@ -570,9 +572,66 @@ phyloseq_normalize_median <- function (ps) {
                              "white", fontface = "italic", min.size = 0) +
         scale_fill_viridis_d() +
         theme(legend.position="none", plot.title = element_text(size = 16, face = "bold"))
-     print(g_treemap)
-     return(df)
+     print(gg)
+     treemap_list <- list(gg = gg, df=df)
+     return(treemap_list)
  }
+
+# phyloseq_long_asv_bargraph : Do a bar graph of top asvs based on the long version of a phyloseq file ------
+
+#' @title Do a bar graph of top asvs based on the long version of a phyloseq file
+#' @description Plot the bar graph and returns a list with a ggplot and a df with the summary of the data
+#' @param df Data frame obtained from a phyloseq file using the function phyloseq_transform_to_long
+#' @param n_asv numbers of asv to plot
+#' @param title Title for the treemap
+#' @param text_scaling Scaling for the text of the graph
+#' @param division_colors Colors to be used for the different divisions
+#' @return
+#' Plot the bargraph
+#' Returns a list made of 2 elements
+#'   * gg = the bargraph as ggplot
+#'   * df =  a dataframe with the summarized data
+#' @examples
+#' my_list <- phyloseq_long_asv_bargraph(phyloseq_long, title= "Antartica", n_asv=10, text_scaling=1)
+#' @export
+#' @md
+
+phyloseq_long_asv_bargraph <- function(df, n_asv=30, title="", text_scaling = 0.75,
+                                       division_colors = structure(c("green", "orange", "red", "blue", "brown"),
+                                                                   .Names=c("Chlorophyta", "Cryptophyta", "Rhodophyta","Haptophyta", "Ochrophyta"))) {
+
+
+  df <- df %>%
+    mutate(asv_label = case_when (kingdom == "Eukaryota" ~ str_c(asv_code, species, sep="-"),
+                                  TRUE ~  str_c(asv_code, family, sep="-") )) %>%
+    group_by(kingdom, supergroup, division, class, genus, species, asv_code, asv_label) %>%
+    summarize(n_reads = sum(n_reads, na.rm = TRUE)) %>%
+    arrange(desc(n_reads)) %>%
+    filter(n_reads > 0) %>%
+    ungroup()
+
+  gg <- ggplot(top_n(df,n=n_asv, wt=n_reads)) +
+    geom_col(aes(x=reorder(asv_label, n_reads), y=n_reads, fill=division)) +
+    coord_flip() +
+    theme_bw() +
+    theme(axis.text.x = element_text(size = 16*text_scaling, angle = 0, hjust = 1, vjust = 1)) +
+    theme(axis.text.y = element_text(size = 16*text_scaling, angle = 0, hjust = 0, vjust = 0)) +
+    theme(legend.title = element_text(size = 24*text_scaling)) +
+    theme(legend.text = element_text(size = 16*text_scaling)) +
+    xlab("") + ylab("Number of reads") +
+    scale_fill_manual(values = division_colors) +
+    ggtitle(title)  +
+    theme(plot.title = element_text(size=22*text_scaling, hjust = 0.5)) +
+    # theme(axis.text=element_text(size=14), legend.text = element_text(size=16)) +
+    theme(legend.position = "top", legend.box = "vertical") +
+    guides(fill = guide_legend(title.position="top",
+                               ncol = 5, nrow = 2, byrow = TRUE ))
+
+   print(gg)
+   treemap_list <- list(gg = gg, df=df)
+   return(treemap_list)
+
+}
 
 # get_primer_position : get primer position ----------------------------------------------
 
