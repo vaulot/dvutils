@@ -24,7 +24,10 @@
 #' @param export_phyloseq  If TRUE, a phyloseq file is produced
 #' @param taxonomy_full If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species
 #' @return
-#' A data frame with asv and metadata for each sample where found.
+#' Alist with three elements that be accessed
+#'      df=asv_set ( data frame in long form)
+#'      ps=phyloseq_asv (phyloseq object)
+#'      fasta=asv_fasta (data frame with the sequences)
 #' @examples
 #' # Export all the asv in a single fasta
 #'   metapr2_export_asv()
@@ -60,7 +63,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
      filter(dataset_id %in% dataset_id_selected) %>%
      filter({{boot_level}} >= boot_min)
 
-# Need to use !! before the local varibale
+# Need to use !! before the local variable
   # Error: Cannot embed a data frame in a SQL query.
   #  If you are seeing this error in code that used to work, the most likely cause is a change dbplyr 1.4.0. Previously `df$x` or
   # `df[[y]]` implied that `df` was a local variable, but now you must make that explict with `!!` or `local()`, e.g., `!!df$x` or
@@ -88,13 +91,21 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name, ".fasta"), compress = FALSE, taxo_include = FALSE)
   }
 
+
  asv_set <-  asv_set %>%
    left_join(metapr2_asv_abundance) %>%
    left_join(metapr2_samples) %>%
    left_join(metapr2_metadata) %>%
    left_join(select(metapr2_datasets, -gene, -gene_region), by = c("dataset_id" = "dataset_id"))
 
- if (export_xls) openxlsx::write.xlsx(asv_set, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name, ".xlsx"))
+  asv_set_wide <- asv_set %>%
+    select(asv_code, kingdom:species_boot, file_code, n_reads) %>%
+    pivot_wider(names_from=file_code, values_from = n_reads, values_fill=list(n_reads=0))
+
+ if (export_xls) {
+   openxlsx::write.xlsx(asv_set, str_c(directory, "metapr2_asv_set_long_", dataset_id_char ,"_", taxo_name, ".xlsx"))
+   openxlsx::write.xlsx(asv_set_wide, str_c(directory, "metapr2_asv_set_wide_", dataset_id_char ,"_", taxo_name, ".xlsx"))
+ }
 
 
 
@@ -110,7 +121,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   # 2. otu table :
   otu <- asv_set %>%
     select(asv_code, file_code, n_reads) %>%
-    spread(key=file_code, value = n_reads, fill=0) %>%
+    pivot_wider(names_from=file_code, values_from = n_reads, values_fill=list(n_reads=0)) %>%
     column_to_rownames(var = "asv_code")
 
   # 3. Taxonomy table

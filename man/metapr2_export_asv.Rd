@@ -30,7 +30,10 @@ metapr2_export_asv(taxo_level = kingdom, taxo_name = "Eukaryota",
 \item{taxonomy_full}{If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species}
 }
 \value{
-A data frame with asv and metadata for each sample where found.
+Alist with three elements that be accessed
+df=asv_set ( data frame in long form)
+ps=phyloseq_asv (phyloseq object)
+fasta=asv_fasta (data frame with the sequences)
 }
 \description{
 Exports a range of file and format.
