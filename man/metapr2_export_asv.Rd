@@ -7,13 +7,15 @@
 metapr2_export_asv(taxo_level = kingdom, taxo_name = "Eukaryota",
   boot_level = class_boot, boot_min = 0,
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
-  dataset_id_selected = c(1:100), export_xls = FALSE,
-  export_phyloseq = FALSE, taxonomy_full = TRUE)
+  dataset_id_selected = c(1:100), export_long_xls = FALSE,
+  export_wide_xls = FALSE, export_sample_xls = FALSE,
+  export_phyloseq = FALSE, export_fasta = FALSE,
+  taxonomy_full = TRUE)
 }
 \arguments{
 \item{taxo_level}{The taxonomic level for selection (do not quote), e.g. class or genus}
 
-\item{taxo_name}{The name of the taxonomic level selected, e.g. Chlorophyta}
+\item{taxo_name}{The name of the taxonomic level selected, e.g. "Chlorophyta", can be a vector c("Chlorophyta", "Haptophyta")}
 
 \item{boot_level}{The taxonomic level for bootstrap filtering (do not quote), e.g. class_boot or genus_boot}
 
@@ -23,16 +25,22 @@ metapr2_export_asv(taxo_level = kingdom, taxo_name = "Eukaryota",
 
 \item{dataset_id_selected}{Integer vector, e.g. 23 or c(21, 23) or 21:23}
 
-\item{export_xls}{If TRUE, an xlsx file is produced containing the final data frame}
+\item{export_long_xls}{If TRUE, an xlsx file is produced containing the final long data frame}
 
-\item{export_phyloseq}{If TRUE, a phyloseq file is produced}
+\item{export_wide_xls}{If TRUE, an xlsx file is produced containing the final wide data frame}
+
+\item{export_sample_xls}{If TRUE, an xlsx file is produced containing the sample list}
+
+\item{export_phyloseq}{If TRUE, a phyloseq file is produced and a phyloseq object producted}
+
+\item{export_fasta}{If TRUE, a fasta is produced}
 
 \item{taxonomy_full}{If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species}
 }
 \value{
 Alist with three elements that be accessed
-df=asv_set ( data frame in long form)
-ps=phyloseq_asv (phyloseq object)
+df=asv_set (data frame in long form)
+ps=phyloseq_asv (phyloseq object) - if phyloseq = TRUE
 fasta=asv_fasta (data frame with the sequences)
 }
 \description{
@@ -58,6 +66,8 @@ Returns a list with 3 elements
   metapr2_export_asv(dataset_id_selected = 23, export_phyloseq = TRUE)
 
 # Export a specific genus as a fasta file and an excel file
-  asv_set <- metapr2_export_asv(taxo_level = genus, taxo_name="Pseudohaptolina",
-                                taxonomy_full= FALSE, boot_min = 100, export_xls = TRUE)
+  asv_set <- metapr2_export_asv(taxo_level = genus, taxo_name=c("Pseudohaptolina","Haptolina"),
+                                export_fasta=TRUE, taxonomy_full= FALSE,
+                                boot_level = genus_boot, boot_min = 100,
+                                export_long_xls = TRUE)
 }
