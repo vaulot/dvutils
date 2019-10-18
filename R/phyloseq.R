@@ -172,7 +172,7 @@ phyloseq_normalize_percent <- function (ps) {
 #' df <- phyloseq_transform_to_long(ps)
 #' @export
 #' @md
-  phyloseq_transform_to_long_new<- function(ps) {
+  phyloseq_transform_to_long <- function(ps) {
     otu_df <- as.data.frame(ps@otu_table@.Data, stringsAsFactors = FALSE) %>%
       rownames_to_column(var = "asv_code") %>%
       pivot_longer(cols = -asv_code,
