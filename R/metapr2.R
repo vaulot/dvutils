@@ -69,7 +69,11 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
      collect()
 
 # Create a label for the taxons selected to be used for the files
-  taxo_name_label <- str_c(str_sub(taxo_name, 1, 6), collapse="_")
+  if(length_taxo_name > 1){
+    taxo_name_label <- str_c(str_sub(taxo_name, 1, 5), collapse="_")
+  } else {
+    taxo_name_label <- taxo_name
+    }
 
 # Filter the asv based on the datasets selected and the minimum bootstrap
   asv_set <- asv_set %>%
