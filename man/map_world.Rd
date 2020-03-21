@@ -4,8 +4,11 @@
 \alias{map_world}
 \title{Background map using the maps package}
 \usage{
-map_world(color_continents = "grey80", color_borders = "white",
-  resolution = "coarse")
+map_world(
+  color_continents = "grey80",
+  color_borders = "white",
+  resolution = "coarse"
+)
 }
 \arguments{
 \item{color_continents}{color for the continents (grey80 by default)}

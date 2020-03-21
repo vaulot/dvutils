@@ -4,14 +4,18 @@
 \alias{phyloseq_nmds}
 \title{Do a bar graph of top taxo_level or asvs based on the long version of a phyloseq file}
 \usage{
-phyloseq_nmds(ps, title = "", env_parameters = c("temperature",
-  "salinity", "Chla", "NO3", "PO4", "Si"),
+phyloseq_nmds(
+  ps,
+  title = "",
+  env_parameters = c("temperature", "salinity", "Chla", "NO3", "PO4", "Si"),
   classifying_parameters = c("fraction_name", "season"),
-  sample_color = fraction_name, sample_shape = season,
-  sample_label = sample_label, taxo_level = division,
-  taxo_colors = structure(c("green", "orange", "red", "blue", "brown"),
-  .Names = c("Chlorophyta", "Cryptophyta", "Rhodophyta", "Haptophyta",
-  "Ochrophyta")))
+  sample_color = fraction_name,
+  sample_shape = season,
+  sample_label = sample_label,
+  taxo_level = division,
+  taxo_colors = structure(c("green", "orange", "red", "blue", "brown"), .Names =
+    c("Chlorophyta", "Cryptophyta", "Rhodophyta", "Haptophyta", "Ochrophyta"))
+)
 }
 \arguments{
 \item{ps}{Phyloseq file}

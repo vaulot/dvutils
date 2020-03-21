@@ -25,6 +25,7 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 BiocManager::install("dada2")
 BiocManager::install("genbankr")
+BiocManager::install("phyloseq")
 
 install.packages(devtools)
 devtools::install_github("pr2database/pr2database")

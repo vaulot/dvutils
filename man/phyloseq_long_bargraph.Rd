@@ -4,11 +4,16 @@
 \alias{phyloseq_long_bargraph}
 \title{Do a bar graph of top taxo_level or asvs based on the long version of a phyloseq file}
 \usage{
-phyloseq_long_bargraph(df, n_bars = 30, title = "",
-  text_scaling = 0.75, use_asv = TRUE, taxo_level = species,
-  division_colors = structure(c("green", "orange", "red", "blue",
-  "brown"), .Names = c("Chlorophyta", "Cryptophyta", "Rhodophyta",
-  "Haptophyta", "Ochrophyta")))
+phyloseq_long_bargraph(
+  df,
+  n_bars = 30,
+  title = "",
+  text_scaling = 0.75,
+  use_asv = TRUE,
+  taxo_level = species,
+  division_colors = structure(c("green", "orange", "red", "blue", "brown"), .Names =
+    c("Chlorophyta", "Cryptophyta", "Rhodophyta", "Haptophyta", "Ochrophyta"))
+)
 }
 \arguments{
 \item{df}{Data frame obtained from a phyloseq file using the function phyloseq_transform_to_long}

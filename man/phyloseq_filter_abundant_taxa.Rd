@@ -9,7 +9,7 @@ phyloseq_filter_abundant_taxa(ps, fraction_min = 0.1)
 \arguments{
 \item{ps}{phyloseq object}
 
-\item{fraction_min}{minimum fraction that an OTU must represent in any given samples (not overall!) - 0.10 corresponds to 10%}
+\item{fraction_min}{minimum fraction that an OTU must represent in any given samples (not overall!) - 0.10 corresponds to 10\%}
 }
 \value{
 ps object with only abundant taxa

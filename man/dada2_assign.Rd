@@ -4,10 +4,13 @@
 \alias{dada2_assign}
 \title{Assign sequences using dada2 wang assigner}
 \usage{
-dada2_assign(seq_file_name,
-  ref_file_name = "C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.10.0/pr2_version_4.10.0_dada2.fasta.gz",
-  tax_levels = c("kingdom", "supergroup", "division", "class", "order",
-  "family", "genus", "species"))
+dada2_assign(
+  seq_file_name,
+ 
+    ref_file_name = "C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.10.0/pr2_version_4.10.0_dada2.fasta.gz",
+  tax_levels = c("kingdom", "supergroup", "division", "class", "order", "family",
+    "genus", "species")
+)
 }
 \arguments{
 \item{seq_file_name}{Name of the file to assign}
@@ -22,9 +25,7 @@ A data frame with the sequence names, the assignements and the bootstrap values
 \description{
 Write out 2 files with the taxonomy and the bootstrap values. Extnesions are .dada2.taxo and .dada2.boot
 
-The reference file should be a fasta fiel with taxonomy separated by ";"
-
-Level1;Level2;Level3;Level4;Level5;Level6;
+The reference file should be a fasta fiel with taxonomy separated by ";"Level1;Level2;Level3;Level4;Level5;Level6;
 
 ACCTAGAAAGTCGTAGATCGAAGTTGAAGCATCGCCCGATGATCGTCTGAAGC
 }

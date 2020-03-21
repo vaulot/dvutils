@@ -4,9 +4,21 @@
 \alias{gg_bar_discrete}
 \title{Do a simple barplot}
 \usage{
-gg_bar_discrete(df, x, y, fill, xlimits, ymin, ymax, xlab, ylab,
-  bar_labels = FALSE, flip = FALSE, legend = FALSE,
-  legend_colors = c(none = "black", legend_label = ""))
+gg_bar_discrete(
+  df,
+  x,
+  y,
+  fill,
+  xlimits,
+  ymin,
+  ymax,
+  xlab,
+  ylab,
+  bar_labels = FALSE,
+  flip = FALSE,
+  legend = FALSE,
+  legend_colors = c(none = "black", legend_label = "")
+)
 }
 \arguments{
 \item{df}{Data frame}

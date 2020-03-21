@@ -4,13 +4,20 @@
 \alias{metapr2_export_asv}
 \title{Exports the metapr2 database}
 \usage{
-metapr2_export_asv(taxo_level = kingdom, taxo_name = "Eukaryota",
-  boot_level = class_boot, boot_min = 0,
+metapr2_export_asv(
+  taxo_level = kingdom,
+  taxo_name = "Eukaryota",
+  boot_level = class_boot,
+  boot_min = 0,
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
-  dataset_id_selected = c(1:100), export_long_xls = FALSE,
-  export_wide_xls = FALSE, export_sample_xls = FALSE,
-  export_phyloseq = FALSE, export_fasta = FALSE,
-  taxonomy_full = TRUE)
+  dataset_id_selected = c(1:100),
+  export_long_xls = FALSE,
+  export_wide_xls = FALSE,
+  export_sample_xls = FALSE,
+  export_phyloseq = FALSE,
+  export_fasta = FALSE,
+  taxonomy_full = TRUE
+)
 }
 \arguments{
 \item{taxo_level}{The taxonomic level for selection (do not quote), e.g. class or genus}

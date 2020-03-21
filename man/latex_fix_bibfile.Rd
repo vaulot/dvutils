@@ -4,9 +4,10 @@
 \alias{latex_fix_bibfile}
 \title{Fix bib library file created by Mendeley}
 \usage{
-
-  latex_fix_bibfile(filename = "C:/Daniel/Paper reprints Bibtex/library.bib",
-  dv_bold = FALSE)
+latex_fix_bibfile(
+  filename = "C:/Daniel/Paper reprints Bibtex/library.bib",
+  dv_bold = FALSE
+)
 }
 \value{
 TRUE if successful

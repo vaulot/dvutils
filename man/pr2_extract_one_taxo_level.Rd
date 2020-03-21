@@ -4,8 +4,13 @@
 \alias{pr2_extract_one_taxo_level}
 \title{Extract one level of taxonomy}
 \usage{
-pr2_extract_one_taxo_level(pr2_taxo, level_above_name, level_name,
-  level_number, taxo_above)
+pr2_extract_one_taxo_level(
+  pr2_taxo,
+  level_above_name,
+  level_name,
+  level_number,
+  taxo_above
+)
 }
 \arguments{
 \item{pr2_taxo}{dataframe - taxonomy with 8 coumns kigdom -> species (but can be more)}

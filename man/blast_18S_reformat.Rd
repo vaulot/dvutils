@@ -31,19 +31,20 @@ For the formating options see:
 }
 
 What does the function do :
+0. Remove any self hit
 \enumerate{
 \item Group all GenBank accession
 \item Obtain taxonomy from GenBank (note the GenBank taxonomy is now in the PR2 database after downloading from \url{ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/})
 \item Check if the sequence is in PR2 and get the PR2 taxo (this is done with the pr2 database package)
 \item Detect whether the Subject sequence is uncultured or not
 \item Merge back into the BLAST file
-\item Compute a summary with best hit, best hit to PR2, best hit to cultured, taxo consensus (identity>96%), contradiction at division level (identity>90%)
+\item Compute a summary with best hit, best hit to PR2, best hit to cultured, taxo consensus (identity>96\%), contradiction at division level (identity>90\%)
 }
 
 The \strong{modified BLAST output file} includes additional columns
 \itemize{
 \item kingdom -> species : PR2 taxonomy for those accession numbers that are present in PR2
-\item hit_rank : the rank of the hit based on decreasing % identity and decreasing bit scores
+\item hit_rank : the rank of the hit based on decreasing \% identity and decreasing bit scores
 \item uncultured : TRUE if the hit corresponds to an uncultured item
 \item hit_lineage : GenBank taxonomy of the hit
 }
@@ -53,8 +54,8 @@ The \strong{summary file} contains several set of columns
 \item The top hit (column with prefix hit_top_)
 \item The top hit for which a PR2 sequence is available (columns starting with hit_pr2_)
 \item The top hit corresponding to a culture or an isolate (columns starting with hit_cul)
-\item A "consensus" taxonomy based on all the hits with more than 98\% identity, keeping the most frequent hit at the genus level and using the sum of the bit scores to decide if there are some ties.
-\item Contradiction between hits >90\% identity at the division level
+\item A "consensus" taxonomy based on all the hits with more than 98\\% identity, keeping the most frequent hit at the genus level and using the sum of the bit scores to decide if there are some ties.
+\item Contradiction between hits >90\\% identity at the division level
 }
 }
 \section{To do}{

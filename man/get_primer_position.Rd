@@ -4,8 +4,12 @@
 \alias{get_primer_position}
 \title{Get primer position on sequence set}
 \usage{
-get_primer_position(primer_seq, target_seq, orientation = "fwd",
-  mismatches = 0)
+get_primer_position(
+  primer_seq,
+  target_seq,
+  orientation = "fwd",
+  mismatches = 0
+)
 }
 \arguments{
 \item{primer_seq}{primer sequence}

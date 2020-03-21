@@ -19,6 +19,7 @@
 #' * [Metagenomics wiki](http://www.metagenomics.wiki/tools/blast/blastn-output-format-6).
 #'
 #' What does the function do :
+#' 0. Remove any self hit
 #' 1. Group all GenBank accession
 #' 2. Obtain taxonomy from GenBank (note the GenBank taxonomy is now in the PR2 database after downloading from \url{ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/})
 #' 3. Check if the sequence is in PR2 and get the PR2 taxo (this is done with the pr2 database package)
@@ -97,6 +98,9 @@ blast_18S_reformat <- function(file_name){
   # some sequences have # so cannot use comment = "#"
   # some fields have N/A when missing information
   blast<- read_tsv(file_name, col_names = blast_columns$name, na=c("N/A",""), guess_max=10000)
+
+# remove any hit to of a sequence to itself if blasting genbank sequences
+  blast <- blast %>%  filter(!str_detect(query_id, hit_acc))
 
 # order by otu, decreasing percent, increasing evalue, and add a rank variable
   blast<- blast %>% arrange(query_id, dplyr::desc(pct_identity),evalue, dplyr::desc(bit_score)) %>%
@@ -329,6 +333,9 @@ blast_summary <- function(file_name){
   # some sequences have # so cannot use comment = "#"
   # some fields have N/A when missing information
   blast<- read_tsv(file_name, col_names = blast_columns$name, na=c("N/A",""), guess_max=10000)
+
+# remove any hit to of a sequence to itself if blasting genbank sequences
+  blast <- blast %>%  filter(!str_detect(query_id, hit_acc))
 
 # order by otu, decreasing percent, increasing evalue, and add a rank variable
   blast<- blast %>% arrange(query_id, dplyr::desc(pct_identity),evalue, dplyr::desc(bit_score)) %>%

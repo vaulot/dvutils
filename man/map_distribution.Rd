@@ -4,10 +4,19 @@
 \alias{map_distribution}
 \title{Draw distribution map from data frame}
 \usage{
-map_distribution(df, z_limits = c(0, 100), z_breaks = c(10, 25, 50, 75,
-  100), z_min = 1, color_not_present = "blue", size_not_present = 1,
-  base_size = 14, map_title = "", map_tag = "",
-  legend_position = c(0.15, 0.25), legend_title = "\%")
+map_distribution(
+  df,
+  z_limits = c(0, 100),
+  z_breaks = c(10, 25, 50, 75, 100),
+  z_min = 1,
+  color_not_present = "blue",
+  size_not_present = 1,
+  base_size = 14,
+  map_title = "",
+  map_tag = "",
+  legend_position = c(0.15, 0.25),
+  legend_title = "\%"
+)
 }
 \arguments{
 \item{df}{Dataframe having at least 3 columns z for the quantity to be mapped, longitude, latitude}

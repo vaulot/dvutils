@@ -4,8 +4,12 @@
 \alias{pr2_export}
 \title{Export the PR2 database (one file)}
 \usage{
-pr2_export(pr2_select, file_name, file_type = "fasta",
-  file_format = "fasta_taxo_long")
+pr2_export(
+  pr2_select,
+  file_name,
+  file_type = "fasta",
+  file_format = "fasta_taxo_long"
+)
 }
 \arguments{
 \item{pr2_select}{data frame - the pr2 database or an extract of the pr2 database}

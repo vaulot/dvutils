@@ -4,8 +4,10 @@
 \alias{db_info}
 \title{Get the connection info for a specific database}
 \usage{
-db_info(database_name,
-  file_cnf = "C:/daniel.vaulot@gmail.com/Databases/MySQL/my.cnf")
+db_info(
+  database_name,
+  file_cnf = "C:/daniel.vaulot@gmail.com/Databases/MySQL/my.cnf"
+)
 }
 \arguments{
 \item{database_name}{One of the following choices "rcc", "pr2_google", "metapr2_google", "rcc_local", "pr2_local", "metapr2_local"}

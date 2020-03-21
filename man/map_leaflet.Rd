@@ -4,8 +4,14 @@
 \alias{map_leaflet}
 \title{Map with leaflet package (OpenStreetMap)}
 \usage{
-map_leaflet(df, lng_center = 0, lat_center = 0, zoom = 3,
-  width = 500, height = 500)
+map_leaflet(
+  df,
+  lng_center = 0,
+  lat_center = 0,
+  zoom = 3,
+  width = 500,
+  height = 500
+)
 }
 \arguments{
 \item{df}{Dataframe having at least 3 columns longitude, latitude,label for label to be plotted}

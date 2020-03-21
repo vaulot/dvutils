@@ -4,8 +4,13 @@
 \alias{fasta_write}
 \title{Write a fasta file with the taxonomy}
 \usage{
-fasta_write(df, file_name, compress = FALSE, taxo_include = TRUE,
-  taxo_separator = "|")
+fasta_write(
+  df,
+  file_name,
+  compress = FALSE,
+  taxo_include = TRUE,
+  taxo_separator = "|"
+)
 }
 \arguments{
 \item{df}{The data frame with the otu names, the taxonomy and the sequences. It should have the following columns (with exactly these names)\preformatted{  * seq_name : the sequence name
@@ -24,9 +29,7 @@ TRUE if it terminates OK}
 }
 \description{
 Write a fasta file from a set of sequences
-Option : add to the definition line the the taxonomy separated by separator character (e.g. |)
-
-Otu0001|Alveolata|Dinophyta|Syndiniales|Dino-Group-I|Dino-Group-I-Clade-1|Dino-Group-I-Clade-1_X|Dino-Group-I-Clade-1_X_sp.
+Option : add to the definition line the the taxonomy separated by separator character (e.g. |)Otu0001|Alveolata|Dinophyta|Syndiniales|Dino-Group-I|Dino-Group-I-Clade-1|Dino-Group-I-Clade-1_X|Dino-Group-I-Clade-1_X_sp.
 
 AGCTCCAATAGCGTATATTAAAGTTGTTGCGGTTAAAAAGCTCGTAGTTGGA...
 }

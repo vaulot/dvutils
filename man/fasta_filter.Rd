@@ -4,8 +4,13 @@
 \alias{fasta_filter}
 \title{Filter a fasta file}
 \usage{
-fasta_filter(file_name, min_length = 100, max_length = 10000,
-  type = "AA", max_ambig = 5)
+fasta_filter(
+  file_name,
+  min_length = 100,
+  max_length = 10000,
+  type = "AA",
+  max_ambig = 5
+)
 }
 \arguments{
 \item{file_name}{Name the input fasta file}

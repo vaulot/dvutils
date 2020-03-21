@@ -1,7 +1,7 @@
 Package: dvutils
 Type: Package
 Title: A set of utilities
-Version: 1.0.0
+Version: 1.0.1
 Author: Daniel Vaulot
 Maintainer: Daniel Vaulot <vaulot@gmail.com>
 Description: Set of utilities for :        
@@ -39,6 +39,6 @@ Imports:
   tidyr,
   treemap,
   viridis
-RoxygenNote: 6.1.1
+RoxygenNote: 7.0.2
 Suggests: testthat
 Roxygen: list(markdown = FALSE)
