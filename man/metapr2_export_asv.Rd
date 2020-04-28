@@ -45,10 +45,7 @@ metapr2_export_asv(
 \item{taxonomy_full}{If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species}
 }
 \value{
-Alist with three elements that be accessed
-df=asv_set (data frame in long form)
-ps=phyloseq_asv (phyloseq object) - if phyloseq = TRUE
-fasta=asv_fasta (data frame with the sequences)
+A list with 4 elements
 }
 \description{
 Exports a range of file and format.
@@ -56,14 +53,18 @@ Exports a range of file and format.
 \item fasta file with the full taxonomy or just the genus level
 \item excel file with the full table of the asv and metadata
 \item phyloseq file (better when only selecting a single data set)
+\item list of samples with metadata
 }
 
-Returns a list with 3 elements
+Returns a list with 4 elements
 \itemize{
 \item df = dataframe with all the asv and the stations and read numbers
-\item ps = phyloseq object
+\item ps = phyloseq object  - if phyloseq = TRUE
 \item fasta = df with 2 columns seq_name and sequence
+\item samples= sample_list (list of sammples with metadata)
 }
+
+NOTE: if all export_long_xls, export_wide_xls, export_phyloseq are false, abundances are not exported
 }
 \examples{
 # Export all the asv in a single fasta
