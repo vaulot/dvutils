@@ -117,7 +117,9 @@ XStringSet_to_df|Transforms a DNA or AA String set into a data frame
 
 ``` r
 
-seq_search <- dvutils::genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", seq_max = 500)
+seq_search <- dvutils::genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", 
+                                      seq_max = 500)
 
-seq_parsed <- dvutils::genbank_download_parse(accession = seq_search$genbank_accession, directory = "genbank/", sequence_keep=TRUE)
+seq_parsed <- dvutils::genbank_download_parse(accession = seq_search$genbank_accession, 
+                                              directory = "genbank/", sequence_keep=TRUE)
 ```
