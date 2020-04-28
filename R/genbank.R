@@ -119,7 +119,7 @@ genbank_download <-function(accession,directory) {
 #'@return
 #'Data frame with the metadata information.
 #'@examples
-#'gb_metadata <- genbank_download_parse(c("JX015376", "JQ768406", "LT621940"), "genbank/")
+#'gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), directory = "genbank/", sequence_keep=TRUE)
 
 #'@export
 #'@md
