@@ -116,8 +116,8 @@ XStringSet_to_df|Transforms a DNA or AA String set into a data frame
 ## Searching GenBank, downloading and parsing
 
 Functions built around the rentrez package:
-https://cran.r-project.org/web/packages/rentrez/vignettes/rentrez_tutorial.html
-https://github.com/ropensci/rentrez
+* https://cran.r-project.org/web/packages/rentrez/vignettes/rentrez_tutorial.html
+* https://github.com/ropensci/rentrez
 
 ``` r
 
