@@ -115,6 +115,9 @@ XStringSet_to_df|Transforms a DNA or AA String set into a data frame
 
 ## Searching GenBank, downloading and parsing
 
+Functions built around the rentrez package:
+https://cran.r-project.org/web/packages/rentrez/vignettes/rentrez_tutorial.html
+
 ``` r
 
 seq_search <- dvutils::genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", 
