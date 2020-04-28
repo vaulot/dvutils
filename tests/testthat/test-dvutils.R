@@ -1,3 +1,15 @@
+test_that("Test Genbank search  ", {
+   gb_search <- genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", seq_max = 500)
+   write_tsv(gb_search, "output/gb_search.tsv")
+})
+
+
+# Jump over all the other tests ====================================================
+  if (FALSE) {
+# Jump, jump... ====================================================================
+
+
+# MetaPR2 ---------------------------------------------------------------------
 
 context("metapr2")
 
@@ -14,10 +26,6 @@ test_that("metapr2 asv export ", {
                                     taxonomy_full= FALSE, boot_min = 100, export_xls = TRUE)
 })
 
-
-# Jump over all the other tests ====================================================
-  if (FALSE) {
-# Jump, jump... ====================================================================
 
 
 # PR2 ---------------------------------------------------------------------

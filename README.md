@@ -56,6 +56,7 @@ fastq_subsample|Subsample fastq files
 filename_append|Append a string at the end of a file name before the exension
 filename_change_ext|Change the extension of the file name
 file_unix2dos|Convert between Unix and Dos text format
+genbank_search|Search sequences in GenBank
 genbank_download|Download sequences from GenBank
 genbank_download_parse|Download and parse sequences from GenBank
 genbank_features|Read features of sequences from GenBank

@@ -13,6 +13,57 @@
 # Notes :
 #   Genbank taxonomy can be downloaded from : ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/
 
+# genbank_search ---------------------------------------------
+#'@title Search GenBank
+#'@description
+#'Return sequences information from an ENTREZ search query
+#'@param query Character string for ENTREZ search
+#'@param db Character string for database to be used
+#'@param seq_max Maximum number of sequences to obtain
+#'@return
+#'Data frame with the following columns
+#' * genbank_accession
+#' * gb_definition
+#' * gb_date
+#' * gb_organism
+#'@examples
+#'genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", seq_max = 500)
+
+#'@export
+#'@md
+
+genbank_search <-function(query, db="nuccore", seq_max = 2000) {
+
+  # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
+  httr::set_config(httr::config(http_version = 0))
+
+  # Use API key to go much faster
+  set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+
+  GB_entrez <- rentrez::entrez_search(db=db, term=query, use_history=TRUE)
+  print(GB_entrez)
+
+  seq_max = min(GB_entrez$count, seq_max)
+  seq_step = 50
+  seq_info <- list()
+  for( seq_start in seq(1,seq_max, seq_step)){
+     recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history, retmax=seq_step, retstart=seq_start)
+     genbank_accession <- extract_from_esummary(recs, "caption")
+     gb_definition <- extract_from_esummary(recs, "title")
+     gb_date <- extract_from_esummary(recs, "createdate")
+     gb_organism <- extract_from_esummary(recs, "organism")
+     gb_info_fields <- extract_from_esummary(recs, "subtype")
+     gb_info_data <- extract_from_esummary(recs, "subname")
+     seq_info[[as.character(seq_start)]] <- data.frame(genbank_accession, gb_definition,
+                                                       gb_date, gb_organism,
+                                                       gb_info_fields, gb_info_data)
+     cat(seq_start+seq_step-1, "sequences obtained\r")
+  }
+
+  seq_df <- purrr::reduce(seq_info, dplyr::bind_rows)
+  return(seq_df)
+}
+
 
 # genbank_download ---------------------------------------------
 #'@title Download sequences from GenBank
@@ -82,7 +133,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE) {
   httr::set_config(httr::config(http_version = 0))
 
   # Use API key to go much faster
-  set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+  rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
 
   # Create the directory if does not exist (directory must end by "/")
   if (!fs::dir_exists(directory))
