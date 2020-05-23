@@ -4,10 +4,14 @@
 \alias{pr2_taxo_check}
 \title{Check taxonomy}
 \usage{
-pr2_taxo_check(pr2_taxo, dir_taxo = "")
+pr2_taxo_check(pr2_taxo, taxo_levels = pr2.env$taxo_levels, dir_taxo = "")
 }
 \arguments{
 \item{pr2_taxo}{dataframe - should contain eight columns kingdom -> species}
+
+\item{taxo_levels}{\itemize{
+\item vector with taxo levels
+}}
 
 \item{dir_taxo}{character - full path where file are saved (without final //)}
 }

@@ -116,6 +116,7 @@ genbank_download <-function(accession,directory) {
 #'@param accession Character vector of accession numbers
 #'@param directory Character, directory name which must end by "/"
 #'@param sequence_keep Logical, if FALSE the sequence is not returned in the file data frame
+#'@param store_file Logical, if FALSE the file is not stored and the sequence is not returned in the file data frame
 #'@return
 #'Data frame with the metadata information.
 #'@examples
@@ -124,7 +125,7 @@ genbank_download <-function(accession,directory) {
 #'@export
 #'@md
 
-genbank_download_parse <-function(accession,directory, sequence_keep=TRUE) {
+genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store_file=FALSE) {
 
   # The next line is necessary to read the date correctly
   Sys.setlocale("LC_TIME", "C")
@@ -159,6 +160,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE) {
 
       # The following line checks whether the GenBank file exists - if it is there no need to rewrite
       # and go to GenBank to get it
+
       if (!(fs::file_exists(GB_file))) {
             # if the Accession has been found write the file and read the metadata
             if (length(GB_entrez$ids) > 0) {
@@ -235,7 +237,8 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE) {
   		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
   		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
   		      gb_date = lubridate::as_date(gb_summary[[1]]$createdate,format="%Y/%m/%d", tz = "UTC"),
-  		      gb_locus = ""
+  		      gb_locus = "",
+  		      sequence = NA
   		      )
 		      }
 
@@ -277,6 +280,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE) {
   		    # print(metadata)
       }
    metadata_list[[i]] <- metadata_one_row
+   if (!store_file) file.remove(GB_file)
 
   }
 

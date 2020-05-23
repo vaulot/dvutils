@@ -24,7 +24,7 @@
 # pr2_read -------------------------------------------------------
 #' @title Reads the whole PR2 database into a data frame
 #' @description
-#' The database access codes is obtained with the function db_info("pr2_local").
+#' The database access codes is obtained with the function db_info("pr2_google").
 #'
 #' **Important**: This gets the whole database, including sequences that have been removed.  These sequences must be filtered out before export using pr2  <- pr2 %>% filter (is.na(removed_version)). However the taxo entries that have been removed are already removed.
 #' @return
@@ -36,8 +36,10 @@
 #'
 pr2_read <- function() {
 
+  print("Using pr2_google")
+
 # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_local"))
+  pr2_db_con <- db_connect(db_info("pr2_google"))
 
   pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
     collect()
@@ -69,7 +71,7 @@ pr2_read <- function() {
 # pr2_taxo_read -------------------------------------------------------
 #' @title Reads the PR2 taxonomic database into a data frame
 #' @description
-#' The database access codes is obtained with the function db_info("pr2_local").
+#' The database access codes is obtained with the function db_info("pr2_google").
 #'
 #' **Important**: This gets the current taxonomic  database and does not include taxa that have been removed.
 #' @return
@@ -81,8 +83,11 @@ pr2_read <- function() {
 #'
 pr2_taxo_read <- function() {
 
+  print("Using pr2_google")
+
+
 # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_local"))
+  pr2_db_con <- db_connect(db_info("pr2_google"))
 
   pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
     filter (is.na(taxo_removed_version))%>%
@@ -123,7 +128,7 @@ pr2_sequence_reassign<- function(pr2_update_old) {
                        ", edited_by=", db_sql_escape(pr2.env$editor),
                        " WHERE genbank_accession = ",db_sql_escape(pr2_update_old$genbank_accession))
   # Update database - Unquote this line for updating the database for real...
-    pr2_update_old$query_result <- db_execute_query_vector (db_info("pr2_local"), pr2_update_old$query)
+    pr2_update_old$query_result <- db_execute_query_vector (db_info("pr2_google"), pr2_update_old$query)
 
    return(pr2_update_old)
 }
@@ -193,7 +198,7 @@ if (method == "add") {
 # Update database
 
 # Unquote next line for updating the database for real....
-    pr2_taxo$query_result <- db_execute_query_vector (db_info("pr2_local"), pr2_taxo$query)
+    pr2_taxo$query_result <- db_execute_query_vector (db_info("pr2_google"), pr2_taxo$query)
 
 # It is also necessary to update the genus path so that any species belonging to the updated genera has the same upward taxonomy
     pr2_genus <- pr2_taxo %>% group_by_("kingdom", "supergroup", "division", "class", "order", "family", "genus") %>%
@@ -210,7 +215,7 @@ if (method == "add") {
                        ", taxo_edited_by =", db_sql_escape(pr2.env$editor),
                        " WHERE genus = ",db_sql_escape(pr2_genus$genus))
 
-    pr2_genus$query_result <- db_execute_query_vector (db_info("pr2_local"), pr2_genus$query)
+    pr2_genus$query_result <- db_execute_query_vector (db_info("pr2_google"), pr2_genus$query)
 
     return(pr2_taxo)
 }
@@ -256,7 +261,7 @@ pr2_sequence_label <- function(sample_type, strain, clone, specimen_voucher) {
 #' * The following fields are needed to create the sequence labels : pr2_sample_type, gb_strain, gb_clone, gb_specimen_voucher
 #' @param pr2_select data frame - the pr2 database or an extract of the pr2 database
 #' @param file_name character - full path of file where to save
-#' @param file_type character - one of "fasta", "taxo", "metadata", "merged"
+#' @param file_type character - one of "fasta", "taxo", "metadata", "merged", "merged_excel"
 #' @param file_format character - one of "UTAX", "fasta_taxo_short","fasta_taxo_long","dada2", "dada2_species","mothur"
 #' @return
 #' Write the files in compressed format (.gz)
@@ -378,6 +383,11 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
       write.table(pr2_select, gzfile(file_name),
                   col.names = TRUE, row.names=FALSE,
                   sep="\t", quote= FALSE, na="")
+    },
+    merged_excel = {
+      pr2_select <- pr2_select %>%
+        arrange(supergroup, division, class, order, family, genus, species) %>%
+        openxlsx::write.xlsx(file_name)
     }
   )
 }
@@ -390,14 +400,14 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
 #' @return
 #' TRUE is succesful
 #' @examples
-#' pr2_export_sqlite("pr2_local.sqlite")
+#' pr2_export_sqlite("pr2_google.sqlite")
 #' @export
 #' @md
 
 pr2_export_sqlite <- function(file_name) {
 
 # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_local"))
+  pr2_db_con <- db_connect(db_info("pr2_google"))
   pr2_main <- tbl(pr2_db_con, "pr2_main")
   pr2_main  <- pr2_main %>% filter (is.na(removed_version))%>% collect()
 
@@ -448,10 +458,16 @@ pr2_export_all <- function() {
   pr2 <- pr2 %>% filter (is.na(removed_version))
 
 # All sequences (merged file only)
+
+  print("Exporting merged file")
+
   pr2_export(pr2, file_name=pr2.env$file_merged, file_type="merged")
   # pr2_export(pr2, file_name=pr2.env$file_metadata, file_type="metadata")
 
 # 18S nuclear only
+
+  print("Exporting 18S")
+
   pr2_18S <- filter(pr2, gene == "18S_rRNA")
   pr2_export(pr2_18S, file_name=pr2.env$file_18S_fasta_UTAX, file_type="fasta", file_format="UTAX")
 
@@ -464,6 +480,8 @@ pr2_export_all <- function() {
   pr2_export(pr2_18S, file_name=pr2.env$file_18S_fasta_dada2, file_type="fasta", file_format="dada2")
 
 # 18S V4 - dada2 only
+
+  print("Exporting 18S V4")
 
   # 1. pcr in silico
   # 2. remove amplicon that are NA
@@ -479,6 +497,9 @@ pr2_export_all <- function() {
   pr2_export(pr2_18S_V4, file_name=pr2.env$file_18S_V4_fasta_dada2, file_type="fasta", file_format="dada2")
 
 # 16S plastid only
+
+  print("Exporting 16S plastid")
+
   pr2_16S <- filter(pr2, gene == "16S_rRNA")
   pr2_export(pr2_16S, file_name=pr2.env$file_16S_fasta_UTAX, file_type="fasta", file_format="UTAX")
 
@@ -489,8 +510,14 @@ pr2_export_all <- function() {
 
   pr2_export(pr2_16S, file_name=pr2.env$file_16S_fasta_dada2, file_type="fasta", file_format="dada2")
 
+# R package
 
+  print("Exporting R package")
   save(pr2, pr2_taxo,  file=pr2.env$file_rda)
+
+# SQLite
+
+  print("Exporting SQLite")
   pr2_export_sqlite(pr2.env$file_sqlite)
 
 }
@@ -525,6 +552,7 @@ pr2_export_all <- function() {
 #' * *taxo_species_duplicates*. List of species that appear at least twice in the species list.
 #'
 #' @param pr2_taxo dataframe - should contain eight columns kingdom -> species
+#' @param taxo_levels - vector with taxo levels
 #' @param dir_taxo character - full path where file are saved (without final //)
 #' @return
 #' Write several files (see description)
@@ -532,11 +560,11 @@ pr2_export_all <- function() {
 #' pr2_taxo_check (taxo_list, "C:/Daniel/database")
 #' @export
 #' @md
-pr2_taxo_check <- function(pr2_taxo, dir_taxo="") {
+pr2_taxo_check <- function(pr2_taxo, taxo_levels = pr2.env$taxo_levels, dir_taxo="") {
 
   # Initialize variables
 
-    taxo_levels_number <- length(pr2.env$taxo_levels)
+    taxo_levels_number <- length(taxo_levels)
     taxo_list <- list()
     taxo_list_2_parents <- list()
 
@@ -544,10 +572,11 @@ pr2_taxo_check <- function(pr2_taxo, dir_taxo="") {
 
   # Level 1 - Kingdom
     i <- 1
+    # print(taxo_levels[[1]])
     taxo <- pr2_taxo %>%
-            group_by_ (pr2.env$taxo_levels[1]) %>%
-            summarise(number_of_taxa=n())
-    taxo<-taxo %>% transmute(name=kingdom, taxa_number=number_of_taxa)
+            group_by (!!as.name(taxo_levels[[1]])) %>%
+            summarise(taxa_number=n()) %>%
+            rename(name=!!as.name(taxo_levels[[1]]))
     taxo$level<-i
     taxo$id<-1:nrow(taxo)
     taxo$parent_id<-0
@@ -558,11 +587,11 @@ pr2_taxo_check <- function(pr2_taxo, dir_taxo="") {
 
     for (i in c(2:taxo_levels_number)) {
       taxo_list[[i]] <-pr2_extract_one_taxo_level(pr2_taxo,
-                                              pr2.env$taxo_levels[[i-1]],
-                                              pr2.env$taxo_levels[[i]],
+                                              taxo_levels[[i-1]],
+                                              taxo_levels[[i]],
                                               i,
                                               taxo_list[[i-1]])
-      write_tsv(taxo_list[[i]], path=str_c(dir_taxo,"/","taxo_list_", i, "_", pr2.env$taxo_levels[[i]], ".txt"))
+      write_tsv(taxo_list[[i]], path=str_c(dir_taxo,"/","taxo_list_", i, "_", taxo_levels[[i]], ".txt"))
     }
 
   #  Find taxo levels that have more than one parent
@@ -574,7 +603,7 @@ pr2_taxo_check <- function(pr2_taxo, dir_taxo="") {
                                   summarize (n_parents=n()) %>%
                                   filter (n_parents>1)
       write_tsv(taxo_list_2_parents[[i]],
-                  path=str_c(dir_taxo,"/","taxo_list_2_parents_", i, "_", pr2.env$taxo_level[[i]], ".txt"))
+                  path=str_c(dir_taxo,"/","taxo_list_2_parents_", i, "_", taxo_levels[[i]], ".txt"))
     }
 
   #  Find taxo names that are found at different levels

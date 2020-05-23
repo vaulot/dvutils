@@ -16,7 +16,9 @@ metapr2_export_asv(
   export_sample_xls = FALSE,
   export_phyloseq = FALSE,
   export_fasta = FALSE,
-  taxonomy_full = TRUE
+  taxonomy_full = TRUE,
+  use_hash = FALSE,
+  sum_reads_min = 0
 )
 }
 \arguments{
@@ -43,6 +45,10 @@ metapr2_export_asv(
 \item{export_fasta}{If TRUE, a fasta is produced}
 
 \item{taxonomy_full}{If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species}
+
+\item{use_hash}{If TRUE, the asvs with identical has will be merged and called by their hash value (sequence_hash)}
+
+\item{sum_reads_min}{This is the minimum number of reads (summed over the datasets selected) for an asv to be included}
 }
 \value{
 A list with 4 elements

@@ -16,7 +16,7 @@ pr2_export(
 
 \item{file_name}{character - full path of file where to save}
 
-\item{file_type}{character - one of "fasta", "taxo", "metadata", "merged"}
+\item{file_type}{character - one of "fasta", "taxo", "metadata", "merged", "merged_excel"}
 
 \item{file_format}{character - one of "UTAX", "fasta_taxo_short","fasta_taxo_long","dada2", "dada2_species","mothur"}
 }

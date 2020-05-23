@@ -10,7 +10,7 @@ pr2_read()
 A data frame with all the columns from pr2.
 }
 \description{
-The database access codes is obtained with the function db_info("pr2_local").
+The database access codes is obtained with the function db_info("pr2_google").
 
 \strong{Important}: This gets the whole database, including sequences that have been removed.  These sequences must be filtered out before export using pr2  <- pr2 \%>\% filter (is.na(removed_version)). However the taxo entries that have been removed are already removed.
 }

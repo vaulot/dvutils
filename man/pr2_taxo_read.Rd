@@ -10,7 +10,7 @@ pr2_taxo_read()
 A data frame with all the columns from pr2_taxo.
 }
 \description{
-The database access codes is obtained with the function db_info("pr2_local").
+The database access codes is obtained with the function db_info("pr2_google").
 
 \strong{Important}: This gets the current taxonomic  database and does not include taxa that have been removed.
 }

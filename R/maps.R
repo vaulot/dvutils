@@ -165,10 +165,16 @@ map_leaflet <- function(df, lng_center=0, lat_center=0, zoom = 3, width=500,  he
 #' @export
 #' @md
 
-map_distribution <- function(df,z_limits = c(0,100), z_breaks=c(10,25, 50, 75, 100),
-                             z_min=1,color_not_present= "blue", size_not_present=1 ,
+map_distribution <- function(df,z_limits = c(0,100),
+                             z_breaks=c(10,25, 50, 75, 100),
+                             z_min=1,
+                             color_not_present= "blue",
+                             size_not_present=1 ,
                              base_size = 14,
-                             map_title="", map_tag="", legend_position =c(0.15,0.25),legend_title="%" ) {
+                             map_title="",
+                             map_tag="",
+                             legend_position =c(0.15,0.25),
+                             legend_title="%" ) {
 
 theme_map_distribution <- theme_light(base_size = base_size) +
                           theme ( legend.position = legend_position,

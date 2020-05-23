@@ -32,6 +32,8 @@
 #' @param export_phyloseq  If TRUE, a phyloseq file is produced and a phyloseq object producted
 #' @param export_fasta  If TRUE, a fasta is produced
 #' @param taxonomy_full If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species
+#' @param use_hash If TRUE, the asvs with identical has will be merged and called by their hash value (sequence_hash)
+#' @param sum_reads_min This is the minimum number of reads (summed over the datasets selected) for an asv to be included
 #' @return
 #' A list with 4 elements
 #' @examples
@@ -58,15 +60,14 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                                export_sample_xls=FALSE,
                                export_phyloseq = FALSE,
                                export_fasta=FALSE,
-                               taxonomy_full = TRUE) {
+                               taxonomy_full = TRUE,
+                               use_hash = FALSE,
+                               sum_reads_min = 0) {
 
 # Define a variable to hold the data set id as character
   dataset_id_char <- case_when ((100 %in% dataset_id_selected) ~ "all",
                                 TRUE ~ str_c(dataset_id_selected, collapse = "_"))
 
-# This flag could be used to prevent export abundances but really not necessary
-#  export_abundance <- export_long_xls | export_wide_xls | export_phyloseq
-   export_abundance <- TRUE
 
 # Read the database and already filter for selected records
   metapr2_db <- db_info("metapr2_google")
@@ -95,11 +96,9 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   # `df[[y]]` implied that `df` was a local variable, but now you must make that explict with `!!` or `local()`, e.g., `!!df$x` or
   # `local(df[["y"]))
 
-  # if(export_abundance){
   metapr2_asv_abundance <- tbl(metapr2_db_con, "metapr2_asv_abundance") %>%
     filter(asv_code %in% !!asv_set$asv_code) %>%
     collect()
-  # }
 
   metapr2_samples <- tbl(metapr2_db_con, "metapr2_samples") %>% collect()
 
@@ -109,47 +108,90 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
   db_disconnect(metapr2_db_con)
 
-    if (taxonomy_full) {
-      asv_fasta <- asv_set %>%
-        rename(seq_name = asv_code)
-      if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
-                                    compress = FALSE, taxo_include = TRUE)
-    } else {
-      asv_fasta <- asv_set %>%
-         mutate(seq_name = str_c(asv_code, species, sep="|") )
-      if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
-                                    compress = FALSE, taxo_include = FALSE)
-    }
+# Merging together asvs with same hash value
+
+  if (use_hash){
+    asv_fasta <- asv_set %>%
+        group_by(sequence_hash) %>%
+        slice(1) %>%
+        mutate(asv_code = sequence_hash) %>%
+        ungroup()
+  } else {
+    asv_fasta <- asv_set
+  }
+
 
   sample_list <- metapr2_samples %>%
    left_join(metapr2_metadata) %>%
    filter(dataset_id %in% dataset_id_selected) %>%
    select_if(~!all(is.na(.))) # This removes all the column that are empty
 
-  if(export_abundance){
   asv_set <-  asv_set %>%
    left_join(metapr2_asv_abundance) %>%
    left_join(metapr2_samples) %>%
    left_join(metapr2_metadata) %>%
    left_join(select(metapr2_datasets, -gene, -gene_region), by = c("dataset_id" = "dataset_id")) %>%
    select_if(~!all(is.na(.))) %>%  # This removes all the column that are empty
-   select(-contains(c("dada2", "primer")), -dataset_path, -doi, -reference, -web_link)
+   select(-contains(c("dada2", "primer")), -dataset_path, -paper_doi, -paper_reference, -web_link, -asv_id)
+
+# Merging together asvs with same hash value
+
+  if (use_hash) {
+    asv_set <- asv_set %>%
+        mutate(asv_code = sequence_hash)
   }
 
+# Remove the low abundance ASVs
+
+  asv_set_number <- asv_set %>%
+    count(asv_code, wt=n_reads, sort = TRUE) %>%
+    filter(n >= sum_reads_min)
+
+  asv_set <- asv_set %>%
+    filter(asv_code %in% asv_set_number$asv_code)
+  asv_fasta <- asv_fasta %>%
+    filter(asv_code %in% asv_set_number$asv_code)
+
+# Export fasta file
+
+    if (taxonomy_full) {
+      asv_fasta <- asv_fasta %>%
+        rename(seq_name = asv_code)
+      if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
+                                    compress = FALSE, taxo_include = TRUE)
+    } else {
+      asv_fasta <- asv_fasta %>%
+         mutate(seq_name = str_c(asv_code, species, sep="|") )
+      if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
+                                    compress = FALSE, taxo_include = FALSE)
+    }
+
+# Export wide Excel file
+
   if (export_wide_xls){
-    asv_set_wide <- asv_set %>%
-      select(asv_code, kingdom:species_boot, sequence, sequence_hash, file_code, n_reads) %>%
+      if (use_hash) {
+        # If use_hash, much remove the bootstrap values that may be different for the different asvs with same hash tag
+          asv_set_wide <- asv_set %>%
+            select(asv_code, kingdom:species, sequence, file_code, n_reads)
+      } else {
+          asv_set_wide <- asv_set %>%
+            select(asv_code, kingdom:species_boot, sequence, sequence_hash, file_code, n_reads)
+      }
+
+    asv_set_wide <- asv_set_wide %>%
       pivot_wider(names_from=file_code, values_from = n_reads, values_fill=list(n_reads=0))
 
     openxlsx::write.xlsx(asv_set_wide, str_c(directory, "metapr2_wide_asv_set_", dataset_id_char ,"_", taxo_name_label, ".xlsx"))
   }
+
+# Export long excel file
 
   if (export_long_xls)   openxlsx::write.xlsx(asv_set, str_c(directory, "metapr2_long_asv_set_",
                                                              dataset_id_char ,"_", taxo_name_label, ".xlsx"))
 
   if (export_sample_xls) openxlsx::write.xlsx(sample_list, str_c(directory, "metapr2_samples_asv_set_", dataset_id_char , ".xlsx"))
 
-
+# Export Phyloseq file
 
  if (export_phyloseq) {
        ## Create the samples, otu and taxonomy tables
@@ -191,6 +233,8 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
      }
 
+# Return from function
+
    if (export_phyloseq) {
      return(list(df=asv_set, ps=phyloseq_asv, fasta=asv_fasta, samples=sample_list))
    } else{
@@ -222,3 +266,70 @@ metapr2_export_datasets <- function() {
 
   return(metapr2_datasets)
   }
+
+# metapr2_export_reads_total -------------------------------------------------------
+#' @title Exports the total number of reads in each dataset
+#' @description
+#' Exports  the total number of reads for each file_code
+#'
+#' Data are save in an excel file
+#' @param directory  Directory where the files are saved (finish with /)
+#' @param dataset_id_selected  Integer vector, e.g. 23 or c(21, 23) or 21:23
+#' @return
+#' A data frame with 2 columns:
+#' * file_code
+#' * reads_total
+#' @examples
+#' # Export data for all datasets
+#'   df <- metapr2_export_reads_total()
+#' @export
+#' @md
+#'
+metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
+                               dataset_id_selected = c(1:100)) {
+
+# Define a variable to hold the data set id as character
+  dataset_id_char <- case_when ((100 %in% dataset_id_selected) ~ "all",
+                                TRUE ~ str_c(dataset_id_selected, collapse = "_"))
+
+
+# Read the database and already filter for selected records
+  metapr2_db <- db_info("metapr2_google")
+  metapr2_db_con <- db_connect(metapr2_db)
+
+# Get the asv filtered by datasets
+  asv_set <- tbl(metapr2_db_con, "metapr2_asv")%>%
+     filter(dataset_id %in% dataset_id_selected) %>%
+     collect()
+
+# Need to use !! before the local variable
+  # Error: Cannot embed a data frame in a SQL query.
+  #  If you are seeing this error in code that used to work, the most likely cause is a change dbplyr 1.4.0. Previously `df$x` or
+  # `df[[y]]` implied that `df` was a local variable, but now you must make that explict with `!!` or `local()`, e.g., `!!df$x` or
+  # `local(df[["y"]))
+
+  metapr2_asv_abundance <- tbl(metapr2_db_con, "metapr2_asv_abundance") %>%
+    filter(asv_code %in% !!asv_set$asv_code) %>%
+    collect()
+
+  metapr2_samples <- tbl(metapr2_db_con, "metapr2_samples") %>% collect()
+
+  db_disconnect(metapr2_db_con)
+
+
+  asv_set <-  asv_set %>%
+   left_join(metapr2_asv_abundance) %>%
+   left_join(metapr2_samples)
+
+  asv_set_total <- asv_set %>%
+    filter(!is.na(file_code)) %>%  # Remove empty file codes
+    group_by(file_code) %>%
+    summarise(reads_total = sum(n_reads))
+
+
+    openxlsx::write.xlsx(asv_set_total, str_c(directory, "metapr2_reads_total_", dataset_id_char, ".xlsx"))
+
+    return(asv_set_total)
+
+  }
+

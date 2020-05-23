@@ -16,5 +16,5 @@ TRUE is succesful
 This will save the pr2 database in SQLite databas as 4 tables (pr2_main, pr2_sequences, pr2_metadata, pr2_taxo)
 }
 \examples{
-pr2_export_sqlite("pr2_local.sqlite")
+pr2_export_sqlite("pr2_google.sqlite")
 }
