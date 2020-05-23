@@ -213,16 +213,22 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
 
 		    } else {
 		       # If genbankr cannot read the file, then use rentrez which has some limitations (e.g. no locus)
+		       cat("GB_entrez$ids : ", GB_entrez$ids)
+
 		       gb_summary <- entrez_summary(db="nuccore", id=GB_entrez$ids)
-		       GB_meta <- as.list(unlist(str_split(gb_summary[[1]]$subname, pattern="[|]")))
-           names(GB_meta) <- as.list(unlist(str_split(gb_summary[[1]]$subtype, pattern="[|]")))
-           print(str_c("date : ", gb_summary[[1]]$createdate))
+
+		       cat("gb_summary$subname : ", gb_summary$subname)
+           cat("gb_summary$subtype : ", gb_summary$subtype)
+
+		       GB_meta <- as.list(unlist(str_split(gb_summary$subname, pattern="[|]")))
+           names(GB_meta) <- as.list(unlist(str_split(gb_summary$subtype, pattern="[|]")))
+           print(str_c("date : ", gb_summary$createdate))
 
 		       metadata_one_row <- data.frame (
   		      genbank_accession = accession[i],
-  		      gb_definition = gb_summary[[1]]$title,
-  		      gb_organism = gb_summary[[1]]$organism,
-  		      gb_strain = gb_summary[[1]]$strain,
+  		      gb_definition = gb_summary$title,
+  		      gb_organism = gb_summary$organism,
+  		      gb_strain = gb_summary$strain,
   		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
   		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
   		      gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
@@ -236,8 +242,8 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
   		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
   		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
   		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
-  		      gb_date = lubridate::as_date(gb_summary[[1]]$createdate,format="%Y/%m/%d", tz = "UTC"),
-  		      gb_locus = "",
+  		      gb_date = lubridate::as_date(gb_summary$createdate,format="%Y/%m/%d", tz = "UTC"),
+  		      gb_locus = NA,
   		      sequence = NA
   		      )
 		      }
@@ -290,6 +296,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
   }
   return(metadata)
 }
+
 
 
 # genbank_features  ---------------------------------------------
