@@ -213,12 +213,12 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
 
 		    } else {
 		       # If genbankr cannot read the file, then use rentrez which has some limitations (e.g. no locus)
-		       cat("GB_entrez$ids : ", GB_entrez$ids)
+           # cat("GB_entrez$ids : ", GB_entrez$ids) # DEBUG
 
 		       gb_summary <- entrez_summary(db="nuccore", id=GB_entrez$ids)
 
-		       cat("gb_summary$subname : ", gb_summary$subname)
-           cat("gb_summary$subtype : ", gb_summary$subtype)
+		       # cat("gb_summary$subname : ", gb_summary$subname) # DEBUG
+           # cat("gb_summary$subtype : ", gb_summary$subtype) # DEBUG
 
 		       GB_meta <- as.list(unlist(str_split(gb_summary$subname, pattern="[|]")))
            names(GB_meta) <- as.list(unlist(str_split(gb_summary$subtype, pattern="[|]")))
@@ -243,7 +243,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
   		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
   		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
   		      gb_date = lubridate::as_date(gb_summary$createdate,format="%Y/%m/%d", tz = "UTC"),
-  		      gb_locus = NA,
+  		      gb_locus = "",
   		      sequence = NA
   		      )
 		      }
