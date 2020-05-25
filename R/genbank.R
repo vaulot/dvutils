@@ -329,7 +329,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
 
   metadata_list <- list()
 
-  for (i in seq(1, min(acc_max,acc_step) , acc_step)) {
+  for (i in seq(1, acc_max , acc_step)) {
 
     # i = 1 # for testing
     i_max = min(i+acc_step-1, acc_max)
@@ -395,16 +395,16 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
                                            gb_locus == "ENV" ~ "environmental"))
 
 
-          if (sequence_keep) {
-             metadata_one_row <- left_join( metadata_one_row, sequences) %>%
-            mutate(sequence_length = str_length(gb_sequence))
-          }
+        if (sequence_keep) {
+           metadata_one_row <- left_join( metadata_one_row, sequences) %>%
+          mutate(sequence_length = str_length(gb_sequence))
+        }
 
 
        metadata_list[[j]] <-  metadata_one_row
     }
 
-   cat(i_max - i + 1, " sequences obtained\r")
+   cat(length(recs), " sequences obtained\r")
 
   }
 
@@ -415,7 +415,6 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
 
   return(metadata)
 }
-
 
 # genbank_features  ---------------------------------------------
 #'@title Read features of sequences from GenBank
