@@ -415,6 +415,8 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
   # Only combine rows if they are not empty
   if(length(metadata_list)>0){
     metadata <- purrr::reduce(metadata_list, bind_rows)
+  } else {
+    metadata <- NULL
   }
 
   return(metadata)
