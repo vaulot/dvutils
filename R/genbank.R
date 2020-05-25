@@ -334,7 +334,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
     # i = 1 # for testing
     i_max = min(i+acc_step-1, acc_max)
 
-    query = str_c(accession[i:i_max], collapse = "|")
+    query = str_c(str_c(accession[1:2], "[ACCN]"), collapse = "|")
     GB_entrez <- rentrez::entrez_search(db="nuccore", term=query, use_history=TRUE)
     print(GB_entrez)
 
@@ -401,10 +401,10 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
         }
 
 
-       metadata_list[[j]] <-  metadata_one_row
+       metadata_list[[i+j-1]] <-  metadata_one_row
     }
 
-   cat(length(recs), " sequences obtained\r")
+   cat(length(recs), " sequences obtained\n")
 
   }
 
