@@ -297,6 +297,124 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
   return(metadata)
 }
 
+# genbank_download_parse_rentrez  ---------------------------------------------
+#'@title Download and parse sequences from GenBank using rentrez only
+#'@description
+#'Does not write the GenBank file.
+#'Note: use only sequence_keep = TRUE for simple gene sequences, else it may crash
+#'@param accession Character vector of accession numbers
+#'@param sequence_keep Logical, if FALSE the sequence is not returned in the file data frame
+#'@return
+#'Data frame with the metadata information.
+#'@examples
+#'gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), sequence_keep=TRUE)
+
+#'@export
+#'@md
+genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
+
+  # accession <- c("AH006017","AH006986") # for testing
+
+  # The next line is necessary to read the date correctly
+  Sys.setlocale("LC_TIME", "C")
+
+  # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
+  httr::set_config(httr::config(http_version = 0))
+
+  # Use API key to go much faster
+  rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+
+  acc_max = length(accession)
+  acc_step = 50
+
+  metadata_list <- list()
+
+  for (i in seq(1, min(acc_max,acc_step) , acc_step)) {
+
+    # i = 1 # for testing
+    i_max = min(i+acc_step-1, acc_max)
+
+    query = str_c(accession[i:i_max], collapse = "|")
+    GB_entrez <- rentrez::entrez_search(db="nuccore", term=query, use_history=TRUE)
+    print(GB_entrez)
+
+    if (sequence_keep){
+      sequences <- entrez_fetch(db="nuccore", web_history=GB_entrez$web_history, rettype="fasta")
+      tmp = tempfile()
+      writeLines(sequences, tmp)
+      sequences <- readDNAStringSet(tmp)
+      sequences <- data.frame(gb_sequence=sequences) %>%
+                  rownames_to_column(var = "seq_name") %>%
+                  tidyr::separate(col = seq_name, into = "genbank_accession", sep = "[. ]", extra = "drop" )
+
+    }
+
+    recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history)
+    genbank_accession <- extract_from_esummary(recs, "caption")
+    gb_definition <- extract_from_esummary(recs, "title")
+    gb_date <- extract_from_esummary(recs, "createdate")
+    gb_organism <- extract_from_esummary(recs, "organism")
+    gb_info_fields <- extract_from_esummary(recs, "subtype")
+    gb_info_data <- extract_from_esummary(recs, "subname")
+
+    for (j in 1:length(recs)) {
+        # j = 1 # for testing
+
+        GB_meta <- as.list(unlist(str_split(gb_info_data[j], pattern="[|]")))
+        names(GB_meta) <- as.list(unlist(str_split(gb_info_fields[j], pattern="[|]")))
+
+        metadata_one_row <- data.frame (
+        		      genbank_accession = genbank_accession[j],
+        		      gb_definition = gb_definition[j],
+        		      gb_organism = gb_organism[j],
+        		      gb_strain =  ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
+        		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
+        		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
+        		      gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
+        		      gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
+        		      gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
+        		      gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
+        		      gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
+        		      gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
+        		      gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
+        		      gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
+        		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
+        		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
+        		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
+        		      gb_date = lubridate::as_date(gb_date[j],format="%Y/%m/%d", tz = "UTC"),
+        		      gb_locus = ""
+        		      ) %>%
+        tidyr::separate(col=gb_lat_lon,
+                        into=c("latitude","lat_NS", "longitude", "long_EW"),
+                        sep=" ", remove = FALSE, extra = "drop") %>%
+        mutate(pr2_longitude = case_when(str_detect(long_EW,"[EW]") ~ as.numeric(longitude)*ifelse((long_EW == "E"), 1, -1)) ) %>%
+        mutate(pr2_latitude= case_when (str_detect(lat_NS,"[NS]") ~ as.numeric(latitude)*ifelse((lat_NS == "N"), 1, -1)  ) ) %>%
+        select(-latitude, - longitude, -lat_NS, -long_EW) %>%
+        mutate(pr2_sample_type = case_when(!is.na(gb_isolate) ~ "isolate",
+                                           !is.na(gb_strain)|!is.na(gb_culture_collection) ~ "culture",
+                                           gb_locus == "ENV" ~ "environmental"))
+
+
+          if (sequence_keep) {
+             metadata_one_row <- left_join( metadata_one_row, sequences) %>%
+            mutate(sequence_length = str_length(gb_sequence))
+          }
+
+
+       metadata_list[[j]] <-  metadata_one_row
+    }
+
+   cat(i_max - i + 1, " sequences obtained\r")
+
+  }
+
+  # Only combine rows if they are not empty
+  if(length(metadata_list)>0){
+    metadata <- purrr::reduce(metadata_list, bind_rows)
+  }
+
+  return(metadata)
+}
 
 
 # genbank_features  ---------------------------------------------
