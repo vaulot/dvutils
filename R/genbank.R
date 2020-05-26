@@ -334,7 +334,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
     # i = 1 # for testing
     i_max = min(i+acc_step-1, acc_max)
 
-    query = str_c(str_c(accession[i:i_max], "[ACCN]"), collapse = "|")
+    query = str_c(accession[i:i_max], collapse = "|") # if use [ACCN] miss a lot of the metagenomes and genomes
     GB_entrez <- rentrez::entrez_search(db="nuccore", term=query, use_history=TRUE)
     print(GB_entrez)
 
@@ -385,8 +385,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
           		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
           		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
           		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
-          		      gb_date = lubridate::as_date(gb_date[j],format="%Y/%m/%d", tz = "UTC"),
-          		      gb_locus = ""
+          		      gb_date = lubridate::as_date(gb_date[j],format="%Y/%m/%d", tz = "UTC")
           		      ) %>%
           tidyr::separate(col=gb_lat_lon,
                           into=c("latitude","lat_NS", "longitude", "long_EW"),
@@ -396,7 +395,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
           select(-latitude, - longitude, -lat_NS, -long_EW) %>%
           mutate(pr2_sample_type = case_when(!is.na(gb_isolate) ~ "isolate",
                                              !is.na(gb_strain)|!is.na(gb_culture_collection) ~ "culture",
-                                             gb_locus == "ENV" ~ "environmental"))
+                                             !is.na(gb_environmental_sample) ~ "environmental"))
 
 
           if (sequence_keep) {
