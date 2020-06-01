@@ -100,7 +100,9 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     filter(asv_code %in% !!asv_set$asv_code) %>%
     collect()
 
-  metapr2_samples <- tbl(metapr2_db_con, "metapr2_samples") %>% collect()
+  metapr2_samples <- tbl(metapr2_db_con, "metapr2_samples") %>%
+    filter(!is.na(file_code)) %>%   # Remove all samples that have not been processed
+    collect()
 
   metapr2_metadata <- tbl(metapr2_db_con, "metapr2_metadata") %>% collect()
 

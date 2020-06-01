@@ -54,12 +54,16 @@ pr2_read <- function() {
   pr2_metadata <- tbl(pr2_db_con, "pr2_metadata")%>%
     collect()
 
+  pr2_countries <- tbl(pr2_db_con, "list_countries")%>%
+    collect()
+
 # Join the tables and remove any column that contains "junk"
 
   pr2 <- pr2_main %>%
     left_join(pr2_taxo, by = c("species"="species")) %>%
     left_join (pr2_seq) %>%
     left_join (pr2_metadata) %>%
+    left_join (pr2_countries) %>%
     select(-contains("junk"))
 
   db_disconnect(pr2_db_con)
@@ -454,8 +458,10 @@ pr2_export_all <- function() {
   pr2 <- pr2_read()
   pr2_taxo <- pr2_taxo_read()
 
-# Filter out sequences that have been removed
-  pr2 <- pr2 %>% filter (is.na(removed_version))
+# Filter out sequences that have been removed and sequences without species names
+  pr2 <- pr2 %>%
+    filter(is.na(removed_version)) %>%
+    filter(!is.na(species))
 
 # All sequences (merged file only)
 

@@ -360,6 +360,8 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
       gb_organism <- extract_from_esummary(recs, "organism")
       gb_info_fields <- extract_from_esummary(recs, "subtype")
       gb_info_data <- extract_from_esummary(recs, "subname")
+      gb_id <- rentrez::extract_from_esummary(recs, "uid")
+      gb_project_id = rentrez::extract_from_esummary(recs, "projectid")
 
       for (j in 1:length(recs)) {
           # j = 1 # for testing
@@ -369,8 +371,10 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
 
           metadata_one_row <- data.frame (
           		      genbank_accession = genbank_accession[j],
-          		      gb_definition = gb_definition[j],
-          		      gb_organism = gb_organism[j],
+                    gb_id = ifelse(is.null(gb_id[j]), NA, gb_id[j]),
+                    gb_project_id = ifelse(is.null(gb_project_id[j]), NA, gb_project_id[j]),
+          		      gb_definition = ifelse(is.null(gb_definition[j]), NA, gb_definition[j]),
+          		      gb_organism = ifelse(is.null(gb_organism[j]), NA, gb_organism[j]),
           		      gb_strain =  ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
           		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
           		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
