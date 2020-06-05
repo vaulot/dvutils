@@ -76,8 +76,7 @@ fasta_read <- function(file_name, compress=FALSE) {
 
   df <- Biostrings::readDNAStringSet(file_name)
 
-  df <- data.frame(sequence=df) %>%
-                rownames_to_column(var = "seq_name")
+  df <- data.frame(sequence=df, seq_name=names(df))
 }
 
 
