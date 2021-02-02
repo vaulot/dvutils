@@ -174,8 +174,9 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
       #  - not yet (new submission not published yet)
       if ((fs::file_exists(GB_file))) {
 
-		    GB_entry <- tryCatch({genbankr::readGenBank(GB_file, partial=TRUE)},
-		                         error=function(e) NA)  # Catch error in read the GenBank file...
+		    GB_entry <- tryCatch({genbankr::readGenBank(GB_file, partial=TRUE)}, # Catch error in read the GenBank file...
+		                         error=function(e) warning(stringr::str_c("Cannot read file: ", GB_file),
+		                                                   call. = FALSE, immediate. = TRUE, noBreaks. = TRUE))
 		    if (typeof(GB_entry)=="S4") {
   		    GB_meta <- sources(GB_entry) # Could use also GB_entry@sources$isolate for example
   		    # print(GB_meta)
@@ -301,9 +302,13 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
 #'@title Download and parse sequences from GenBank using rentrez only
 #'@description
 #'Does not write the GenBank file.
-#'Note: use only sequence_keep = TRUE for simple gene sequences, else it may crash
+#'Notes:
+#'* Use only sequence_keep = TRUE for simple gene sequences, else it may crash
+#'* Use acc_step = 1 if several accession numbers point to the same accession number (case of metagenomes).
+#'  In this case the queries are sent one by one and the old accession number is kept.
 #'@param accession Character vector of accession numbers
 #'@param sequence_keep Logical, if FALSE the sequence is not returned in the file data frame
+#'@param acc_step Integer, number of accession numbers for each query.
 #'@return
 #'Data frame with the metadata information.
 #'@examples
@@ -311,7 +316,7 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
 
 #'@export
 #'@md
-genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
+genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_step = 50) {
 
   # accession <- c("AH006017","AH006986") # for testing
 
@@ -325,7 +330,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
   rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
 
   acc_max = length(accession)
-  acc_step = 50
+
 
   metadata_list <- list()
 
@@ -401,10 +406,15 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
                                              !is.na(gb_strain)|!is.na(gb_culture_collection) ~ "culture",
                                              !is.na(gb_environmental_sample) ~ "environmental"))
 
+          if (acc_step == 1) {
+            metadata_one_row <- metadata_one_row %>%
+              mutate(genbank_accession_old = accession[i])
+          }
+
 
           if (sequence_keep) {
              metadata_one_row <- left_join( metadata_one_row, sequences) %>%
-            mutate(sequence_length = str_length(gb_sequence))
+                                 mutate(sequence_length = str_length(gb_sequence))
           }
 
 
@@ -424,6 +434,7 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE) {
 
   return(metadata)
 }
+
 
 # genbank_features  ---------------------------------------------
 #'@title Read features of sequences from GenBank

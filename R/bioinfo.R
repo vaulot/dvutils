@@ -1,9 +1,7 @@
 #' @import dplyr
 #' @import tidyr
-#' @import tibble
 #' @import stringr
-#' @import Biostrings
-#' @import dada2
+#' @import tibble
 
 # fasta_write : Write fasta file with taxo ----------------------------------------------
 
@@ -37,7 +35,7 @@ fasta_write <- function(df,file_name, compress=FALSE, taxo_include=TRUE, taxo_se
 # First remove the gaps (can be - or .)
   df <-  df %>%  mutate(sequence = str_replace_all(sequence, "(-|\\.)",""))
 
-  seq_out <- DNAStringSet(df$sequence)
+  seq_out <- Biostrings::DNAStringSet(df$sequence)
 
   if (taxo_include==TRUE) {
       names(seq_out) <- str_c(df$seq_name,
@@ -53,7 +51,7 @@ fasta_write <- function(df,file_name, compress=FALSE, taxo_include=TRUE, taxo_se
   else { names(seq_out) <- df$seq_name
   }
 
-  writeXStringSet(seq_out, file_name, compress=compress, width = 20000)
+  Biostrings::writeXStringSet(seq_out, file_name, compress=compress, width = 20000)
 
   return(TRUE)
 }
@@ -107,7 +105,7 @@ fasta_read <- function(file_name, compress=FALSE) {
 fasta_filter <- function(file_name, min_length=100, max_length=10000, type="AA", max_ambig=5){
 
 # Read the file
-  if (type=="AA") {seq_in <- readAAStringSet(file_name)}
+  if (type=="AA") {seq_in <- Biostrings::readAAStringSet(file_name)}
 
 # Transform to data frame
   df <- data.frame (names=names(seq_in),sequence=as.character(seq_in), length=nchar(seq_in) )
@@ -120,13 +118,13 @@ fasta_filter <- function(file_name, min_length=100, max_length=10000, type="AA",
   df <- df %>% filter((length >= min_length)& (length <= max_length))
 
 # Construct the Biostring set
-  seq_out <- AAStringSet(df$sequence)
+  seq_out <- Biostrings::AAStringSet(df$sequence)
   names(seq_out) <- df$names
   print(str_c("Number of sequences after filtration: ", nrow(df)))
 
 # Write fasta file
   file_name_out <- str_c(fs::path_ext_remove(file_name),".filtered.",fs::path_ext(file_name))
-  writeXStringSet(seq_out, file_name_out, compress=FALSE, width = max_length)
+  Biostrings::writeXStringSet(seq_out, file_name_out, compress=FALSE, width = max_length)
   return(TRUE)
 }
 
@@ -166,28 +164,28 @@ fastq_subsample <- function(fastq_path, n_seq=1000, random=FALSE) {
 
   # Process R1
     # Create connection to be able to close it after
-     file_in <- FastqFile(fnsR1[i])
+     file_in <- ShortRead::FastqFile(fnsR1[i])
 
     # Sample the number of sequences needed
-     sampler <- FastqStreamer(con=fnsR1[i], n=n_sampled)
+     sampler <- ShortRead::FastqStreamer(con=fnsR1[i], n=n_sampled)
 
     # Draw an instance of the sequences
-     sample<-yield(sampler)
+     sample <- ShortRead::yield(sampler)
 
     # Write the Fastq file
      file_out <- str_replace(fnsR1[i],"R1", "R1.subsample")
      print(file_out)
-     writeFastq(sample, file=file_out, compress=FALSE)
+     ShortRead::writeFastq(sample, file=file_out, compress=FALSE)
      close(file_in)
 
   # Process R2
-     file_in <- FastqFile(fnsR2[i])
-     sampler <- FastqStreamer(con=fnsR2[i], n=n_sampled)
+     file_in <- ShortRead::FastqFile(fnsR2[i])
+     sampler <- ShortRead::FastqStreamer(con=fnsR2[i], n=n_sampled)
      set.seed(123) # The seed need to be reset before each yield to have the matching pairs
-     sample<-yield(sampler)
+     sample<-ShortRead::yield(sampler)
      file_out <- str_replace(fnsR2[i],"R2", "R2.subsample")
      print(file_out)
-     writeFastq(sample, file=file_out, compress=FALSE)
+     ShortRead::writeFastq(sample, file=file_out, compress=FALSE)
      close(file_in)
 
   }
@@ -318,6 +316,60 @@ kmer  <- function(seq, kmer_width = 15) {
   }
   }
 
+# dada2_export -----------------------------------------
+#' @title Export a data frame to dada2 AssignTaxonomy compatible format
+#' @description
+#' This will save  data frame to dada2 AssignTaxonomy compatible format
+#' @param df data frame - should contain 8 or 9 columns with taxo levels and 1 column with sequences
+#' @param file_name character - full path of file where to save
+#' @return
+#' Write the file in compressed format (.gz)
+#' @examples
+#' pr2_export_dada2(my_sequences, "C:/Daniel/myfile.fas.gz", 8)
+#' @export
+#' @md
+dada2_export <- function(df, file_name, taxo_levels_number = 9 ) {
+
+  seq_out <- Biostrings::DNAStringSet(df$sequence)  # Store the sequence in a  DNAString - not used anymore
+
+  # Remove any space from Strain, Clone name, Specimen_voucher
+
+    if (taxo_levels_number == 9) {
+      df <- df %>%
+          mutate ( name_dada2 = str_c(domain,
+                                    supergroup,
+                                    division,
+                                    subdivision,
+                                    class,
+                                    order,
+                                    family,
+                                    genus,
+                                    species,
+                                    "",
+                                    sep=";")
+                   )
+    } else {
+      df <- df %>%
+          mutate ( name_dada2 = str_c(kingdom,
+                                    supergroup,
+                                    division,
+                                    class,
+                                    order,
+                                    family,
+                                    genus,
+                                    species,
+                                    "",
+                                    sep=";")
+                   )
+  }
+
+  names(seq_out) <- df$name_dada2
+
+  # When using DNA strings only LF added (Unix convention)
+  # Set width to max possible so that no carriage return (causes problems with dada2)
+
+    Biostrings::writeXStringSet(seq_out, file_name, compress=TRUE, width = 20000)
+}
 
 
 
@@ -347,20 +399,23 @@ dada2_assign <- function(seq_file_name,
                                       "family", "genus", "species")){
 
 # It is necessary to read the sequences to get the names because dada2 takes the sequecne themselves as names.
-  seq_in <- readDNAStringSet(seq_file_name)
+  seq_in <- Biostrings::readDNAStringSet(seq_file_name)
   seq_names <- names(seq_in)
 
-  taxa <- assignTaxonomy(seqs=seq_file_name,
+  taxa <- dada2::assignTaxonomy(seqs=seq_file_name,
                          refFasta=ref_file_name,
                          taxLevels = tax_levels,
                          minBoot = 0, outputBootstraps = TRUE,
                          verbose = TRUE)
 
 
-  boot <- data.frame(taxa$boot) %>% rename_all(funs(str_c(.,"_boot")))
-  dada2_result <- bind_cols(data.frame(seq_name=seq_names) , data.frame(taxa$tax)) %>% bind_cols(boot)
+  boot <- data.frame(taxa$boot) %>%
+    rename_all(funs(str_c(.,"_boot")))
+  dada2_result <- data.frame(seq_name=seq_names) %>%
+    bind_cols(data.frame(taxa$tax)) %>%
+    bind_cols(boot)
 
-  write_tsv(dada2_result, filename_change_ext(seq_file_name,"dada2.taxo"), na="")
+  readr::write_tsv(dada2_result, filename_change_ext(seq_file_name,"dada2.taxo"), na="")
 
   return(dada2_result)
 
@@ -400,17 +455,17 @@ get_primer_position<- function(primer_seq, target_seq, orientation="fwd", mismat
   # mismatches=0
 
   # Transform primer in DNA String
-  primer_seq <-  DNAString(primer_seq)
+  primer_seq <-  Biostrings::DNAString(primer_seq)
   if (orientation == "rev") primer_seq <-  reverseComplement(primer_seq)
 
   # Create a data frame to hold the sequence position
   df.seq <- data.frame(id=as.character(1:length(target_seq)))
 
   # Transform target sequences into DNA String set
-  target_seq <- DNAStringSet(target_seq)
+  target_seq <- Biostrings::DNAStringSet(target_seq)
   names(target_seq) <- df.seq$id
 
-  pos <- vmatchPattern(primer_seq, target_seq, max.mismatch=mismatches, min.mismatch=0,
+  pos <- Biostrings::vmatchPattern(primer_seq, target_seq, max.mismatch=mismatches, min.mismatch=0,
                       with.indels=FALSE, fixed=FALSE, algorithm="auto")
 
   # Need to unlist the MIndex position
@@ -477,7 +532,7 @@ pcr_sequences <- function(fwd_seq, rev_seq, target_seq, mismatches=0){
     bind_cols(fwd_pos) %>%
     bind_cols(rev_pos) %>%
     mutate(amplicon = case_when ((is.na(fwd_pos)|is.na(rev_pos)) ~ NA_character_,
-                                 TRUE ~ stringr::str_sub(sequence, fwd_start, rev_end)))
+                                 TRUE ~ str_sub(sequence, fwd_start, rev_end)))
 
 
  return(df$amplicon)

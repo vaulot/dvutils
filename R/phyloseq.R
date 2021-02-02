@@ -206,6 +206,7 @@ phyloseq_normalize_percent <- function (ps) {
 #' @param group2 second grouping level (do not quote)
 #' @param title Title for the treemap
 #' @param colors If NULL then the default viridis palette is used.  If named vectors then the colors
+#' @param label_group1 If true, the higher level is labeled.  If false, only boundaries are marked
 #' @return
 #' Plot the treemap
 #' Returns a list made of 2 elements
@@ -216,11 +217,12 @@ phyloseq_normalize_percent <- function (ps) {
 #'                                  structure(c("black", "white"),.Names="Mamiellophyceae", "Dinophyceae"))
 #' @export
 #' @md
- phyloseq_long_treemap <- function(df, group1, group2, title, colors=NULL) {
+phyloseq_long_treemap <- function(df, group1, group2, title, colors=NULL, label_group1 = TRUE) {
 
  df <- df %>%
    group_by({{group1}}, {{group2}}) %>%
    summarise(n_reads=sum(n_reads, na.rm = TRUE))
+
  gg <- ggplot(df, aes(area = n_reads,
                              fill = {{group2}},
                              label = {{group2}},
@@ -230,10 +232,15 @@ phyloseq_normalize_percent <- function (ps) {
     treemapify::geom_treemap_subgroup_border() +
     treemapify::geom_treemap_text(colour = "black", place = "topleft", reflow = T,
                                   padding.x =  grid::unit(3, "mm"),
-                                  padding.y = grid::unit(3, "mm") ) +
-    treemapify::geom_treemap_subgroup_text(place = "centre", grow = T, alpha = 0.5, colour =
-                         "white", fontface = "italic", min.size = 0)  +
+                                  padding.y = grid::unit(3, "mm") )  +
     theme(legend.position="none", plot.title = element_text(size = 16, face = "bold"))
+
+ if (label_group1){
+     gg <- gg +
+        treemapify::geom_treemap_subgroup_text(place = "centre", grow = T, alpha = 0.5, colour =
+                                               "white", fontface = "italic", min.size = 0)
+ }
+
  if (is.null(colors)){
     gg <- gg + scale_fill_viridis_d()
  } else {
@@ -266,29 +273,39 @@ phyloseq_normalize_percent <- function (ps) {
 #' @export
 #' @md
 
-phyloseq_long_bargraph <- function(df, n_bars=30, title="", text_scaling = 0.75, use_asv = TRUE, taxo_level= species,
-                                       division_colors = structure(c("green", "orange", "red", "blue", "brown"),
-                                                                   .Names=c("Chlorophyta", "Cryptophyta", "Rhodophyta","Haptophyta", "Ochrophyta"))) {
+phyloseq_long_bargraph <- function(df, n_bars=30, title="", text_scaling = 0.75,
+                                   use_asv = TRUE,
+                                   taxo_level= species,
+                                   taxo_level_fill = division,
+                                   taxo_colors_fill = structure(c("green", "orange", "red", "blue", "brown"),
+                                                      .Names=c("Chlorophyta", "Cryptophyta", "Rhodophyta","Haptophyta", "Ochrophyta"))) {
+# Define labels for taxa
+  if (use_asv) {
+    df <- df %>%
+      mutate(bar_label = case_when (kingdom == "Eukaryota" ~ str_c(asv_code, species, sep="-"),
+                                    TRUE ~  str_c(asv_code, family, sep="-") ))
+  } else {
+    df <- df %>%
+      mutate(bar_label = {{taxo_level}})
+  }
 
-if (use_asv) {
+  # Clean up the labels
   df <- df %>%
-    mutate(bar_label = case_when (kingdom == "Eukaryota" ~ str_c(asv_code, species, sep="-"),
-                                  TRUE ~  str_c(asv_code, family, sep="-") ))
-} else {
-  df <- df %>%
-    mutate(bar_label = {{taxo_level}})
-}
-
+    mutate(bar_label = str_replace_all(bar_label, c("_" = " ",  # Underscocre by space
+                                                    "X+" = "",  # One or more X by nothing
+                                                    " +" = " ", # One or more space by a single space
+                                                    "Radial-centric-basal-" = ""
+                                                    )))
 
   df <- df %>%
-    group_by(division, bar_label) %>%
+    group_by({{taxo_level_fill}}, bar_label) %>%
     summarize(n_reads = sum(n_reads, na.rm = TRUE)) %>%
     arrange(desc(n_reads)) %>%
     filter(n_reads > 0) %>%
     ungroup()
 
   gg <- ggplot(top_n(df,n=n_bars, wt=n_reads)) +
-    geom_col(aes(x=reorder(bar_label, n_reads), y=n_reads, fill=division)) +
+    geom_col(aes(x=reorder(bar_label, n_reads), y=n_reads, fill={{taxo_level_fill}})) +
     coord_flip() +
     theme_bw() +
     theme(axis.text.x = element_text(size = 16*text_scaling, angle = 0, hjust = 1, vjust = 1)) +
@@ -296,13 +313,13 @@ if (use_asv) {
     theme(legend.title = element_text(size = 24*text_scaling)) +
     theme(legend.text = element_text(size = 16*text_scaling)) +
     xlab("") + ylab("Number of reads") +
-    scale_fill_manual(values = division_colors) +
+    scale_fill_manual(values = taxo_colors_fill, drop = FALSE) +
     ggtitle(title)  +
     theme(plot.title = element_text(size=22*text_scaling, hjust = 0.5)) +
     # theme(axis.text=element_text(size=14), legend.text = element_text(size=16)) +
     theme(legend.position = "top", legend.box = "vertical") +
     guides(fill = guide_legend(title.position="top",
-                               ncol = 5, nrow = 2, byrow = TRUE ))
+                               ncol = 4, byrow = TRUE))
 
    print(gg)
    treemap_list <- list(gg = gg, df=df)

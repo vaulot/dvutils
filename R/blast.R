@@ -1,7 +1,6 @@
 #' @import readr
 #' @import dplyr
 #' @import stringr
-#' @import pr2database
 
 # options(stringsAsFactors=FALSE)
 
@@ -148,7 +147,7 @@ blast_18S_reformat <- function(file_name){
                distinct()
 
 # Merge blast with pr2
-  data(pr2)
+  data(pr2, package = "pr2database")
   # Remove entries in PR2 corresponding to the same GenBank (they create duplicated lines in the summary output)
   pr2 <- pr2 %>% select(genbank_accession, kingdom:genus, species) %>% distinct()
   blast_acc <- left_join(blast_acc, pr2,  by=c("hit_acc"="genbank_accession"))

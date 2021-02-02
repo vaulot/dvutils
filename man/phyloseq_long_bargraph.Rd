@@ -11,7 +11,8 @@ phyloseq_long_bargraph(
   text_scaling = 0.75,
   use_asv = TRUE,
   taxo_level = species,
-  division_colors = structure(c("green", "orange", "red", "blue", "brown"), .Names =
+  taxo_level_fill = division,
+  taxo_colors_fill = structure(c("green", "orange", "red", "blue", "brown"), .Names =
     c("Chlorophyta", "Cryptophyta", "Rhodophyta", "Haptophyta", "Ochrophyta"))
 )
 }

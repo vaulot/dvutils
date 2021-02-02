@@ -136,15 +136,15 @@ db_info <- function(database_name,
   db_metapr2_google <- list(dbname='metapr2',
                         default.file=file_cnf,
                         groups="google")
-  db_rcc_local <- list(dbname='rcc_local',
+  db_rcc_local <- list(dbname='rcc_google',
                        groups="local",
                        default.file=file_cnf)
-  db_pr2_local <- list(dbname='pr2_local',
-                       groups="local",
-                       default.file=file_cnf)
-  db_metapr2_local <- list(dbname='metapr2_local',
-                       groups="local",
-                       default.file=file_cnf)
+  # db_pr2_local <- list(dbname='pr2_local',
+  #                      groups="local",
+  #                      default.file=file_cnf)
+  # db_metapr2_local <- list(dbname='metapr2_local',
+  #                      groups="local",
+  #                      default.file=file_cnf)
 
   dbinfo <- NULL
   if (database_name == "rcc") {db_info=db_rcc}

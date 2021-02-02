@@ -7,7 +7,7 @@
 pr2_taxo_check(pr2_taxo, taxo_levels = pr2.env$taxo_levels, dir_taxo = "")
 }
 \arguments{
-\item{pr2_taxo}{dataframe - should contain eight columns kingdom -> species}
+\item{pr2_taxo}{dataframe - should contain eight or nine columns kingdom -> species or domain -> species}
 
 \item{taxo_levels}{\itemize{
 \item vector with taxo levels
@@ -33,7 +33,7 @@ Several files are produced:
 \itemize{
 \item name of each taxon
 \item taxa_number - number of species in this taxon
-\item level of taxon - from 1 to 8 (1 for kingdom)
+\item level of taxon - from 1 to 8 (1 for kingdom or domain)
 \item id of the parent taxon (at rank i-1)
 \item id of the taxon (from 1 to n for each rank)
 }

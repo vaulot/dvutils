@@ -4,19 +4,26 @@
 \alias{genbank_download_parse_rentrez}
 \title{Download and parse sequences from GenBank using rentrez only}
 \usage{
-genbank_download_parse_rentrez(accession, sequence_keep = TRUE)
+genbank_download_parse_rentrez(accession, sequence_keep = TRUE, acc_step = 50)
 }
 \arguments{
 \item{accession}{Character vector of accession numbers}
 
 \item{sequence_keep}{Logical, if FALSE the sequence is not returned in the file data frame}
+
+\item{acc_step}{Integer, number of accession numbers for each query.}
 }
 \value{
 Data frame with the metadata information.
 }
 \description{
 Does not write the GenBank file.
-Note: use only sequence_keep = TRUE for simple gene sequences, else it may crash
+Notes:
+\itemize{
+\item Use only sequence_keep = TRUE for simple gene sequences, else it may crash
+\item Use acc_step = 1 if several accession numbers point to the same accession number (case of metagenomes).
+In this case the queries are sent one by one and the old accession number is kept.
+}
 }
 \examples{
 gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), sequence_keep=TRUE)

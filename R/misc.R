@@ -103,4 +103,22 @@ latex_fix_bibfile <- function (filename="C:/Daniel/Paper reprints Bibtex/library
 
 }
 
+# Unfill a table --------------------
+#' @title Remove repeated values in vector
+#' @description
+#' Repeated values are replaced by NA. This is useful for formatting tables for papers.
+#' @return
+#' Vector with repeated values replaced by NA
+#' @examples
+#' x <- c("A","A","A","B","B","C","C")
+#' unfill(x)
+#' \dontrun{
+#' mutate(df, across(c("division", "class"), ~ unfill(.x)))
+#' }
+#' @export
+#' @md
 
+unfill <- function(x) {
+  same <- x == dplyr::lag(x)
+  ifelse(!is.na(same) & same, NA, x)
+}

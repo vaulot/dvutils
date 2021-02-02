@@ -4,18 +4,20 @@
 \alias{pr2_treemap}
 \title{Draw a simple treemap from pr2.}
 \usage{
-pr2_treemap(pr2, taxo_rank)
+pr2_treemap(pr2, level1, level2)
 }
 \arguments{
 \item{pr2}{data frame - can be the whole database or a filtered version of it.
 It needs at three columns, 2 taxonomy columns and one for example with sequences}
 
-\item{taxo_rank}{integer between 1 and 7 - defines the first grouping level, level i-1 is used also (1=kingdom etc...)}
+\item{level1}{unquoted variable - lower grouping level}
+
+\item{level2}{unquoted variable - higher grouping level}
 }
 \description{
 Can also be used for any data frame with same taxo structure
 }
 \examples{
 # Will plot at the order and family levels
-pr2_treemap (pr2_filtered, 5)
+pr2_treemap (pr2_filtered, species, order)
 }

@@ -4,7 +4,14 @@
 \alias{phyloseq_long_treemap}
 \title{Do a treemap based on the long version of a phyloseq file}
 \usage{
-phyloseq_long_treemap(df, group1, group2, title, colors = NULL)
+phyloseq_long_treemap(
+  df,
+  group1,
+  group2,
+  title,
+  colors = NULL,
+  label_group1 = TRUE
+)
 }
 \arguments{
 \item{df}{Data frame obtained from a phyloseq file using the function phyloseq_transform_to_long}
@@ -16,6 +23,8 @@ phyloseq_long_treemap(df, group1, group2, title, colors = NULL)
 \item{title}{Title for the treemap}
 
 \item{colors}{If NULL then the default viridis palette is used.  If named vectors then the colors}
+
+\item{label_group1}{If true, the higher level is labeled.  If false, only boundaries are marked}
 }
 \value{
 Plot the treemap

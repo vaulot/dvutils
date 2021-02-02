@@ -4,7 +4,10 @@
 \alias{pr2_export_all}
 \title{Export the PR2 database (all files)}
 \usage{
-pr2_export_all()
+pr2_export_all(pr2.env)
+}
+\arguments{
+\item{pr2.env}{list containing the name of files}
 }
 \value{
 Write the all the files in compressed format (.gz)
@@ -13,5 +16,5 @@ Write the all the files in compressed format (.gz)
 This will save the pr2 database in all the format necessary for the repository on GitHub. It calls \code{link{pr2_export}}
 }
 \examples{
-pr2_export_all()
+pr2_export_all(pr2.env)
 }

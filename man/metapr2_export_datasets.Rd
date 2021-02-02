@@ -2,7 +2,7 @@
 % Please edit documentation in R/metapr2.R
 \name{metapr2_export_datasets}
 \alias{metapr2_export_datasets}
-\title{Exports the metapr2 database}
+\title{Exports the metapr2_datasets table}
 \usage{
 metapr2_export_datasets()
 }

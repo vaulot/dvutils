@@ -4,10 +4,12 @@
 \alias{pr2_buid_taxons}
 \title{Build taxon table (long format)}
 \usage{
-pr2_buid_taxons(pr2_taxonomy, add_old_fields = FALSE)
+pr2_buid_taxons(pr2_taxonomy, pr2.env, add_old_fields = FALSE)
 }
 \arguments{
-\item{pr2_taxonomy}{dataframe - should contain eight columns kingdom -> species (this can be modified by using the pr2.env environment)}
+\item{pr2_taxonomy}{dataframe - should contain eight columns kingdom -> species (this can be modified by using the pr2.env list)}
+
+\item{pr2.env}{list containing the taxon levels}
 
 \item{add_old_fields}{logical - If add_old_fields = TRUE then the following columns are appended: old_species_id, taxon_edited_version, taxon_edited_by,  taxon_removed_version, taxon_remark,  taxon_reference}
 }

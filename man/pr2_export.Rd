@@ -8,7 +8,8 @@ pr2_export(
   pr2_select,
   file_name,
   file_type = "fasta",
-  file_format = "fasta_taxo_long"
+  file_format = "fasta_taxo_long",
+  taxo_levels_number = 9
 )
 }
 \arguments{
@@ -39,5 +40,5 @@ Notes
 }
 }
 \examples{
-pr2_export(pr2, "C:/Daniel/myfile.fas", "fasta", "mothur", "kingdom", "Eukaryota")
+pr2_export(pr2, "C:/Daniel/myfile.fas", "fasta", "mothur", 9)
 }
