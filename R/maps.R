@@ -153,6 +153,8 @@ map_leaflet <- function(df, lng_center=0, lat_center=0, zoom = 3, width=500,  he
 #' @param z_breaks Breaks for the legend
 #' @param z_min Lower limit below which the location is represented by a cross
 #' @param color_not_present Color used to display points where the z is below z_min
+#' @param size_not_present Size used to display points where the z is below z_min
+#' @param size_present Maximum size used to display points where the z is above z_min
 #' @param base_size Font size for the theme (can increase to make axes legends and titles bigger)
 #' @param map_title Title of the map
 #' @param map_tag Tag ("A", "B") to be displayed at top right
@@ -170,15 +172,17 @@ map_distribution <- function(df,z_limits = c(0,100),
                              z_min=1,
                              color_not_present= "blue",
                              size_not_present=1 ,
+                             size_present = 8,
                              base_size = 14,
                              map_title="",
                              map_tag="",
                              legend_position =c(0.15,0.25),
-                             legend_title="%" ) {
+                             legend_title="%") {
 
 theme_map_distribution <- theme_light(base_size = base_size) +
                           theme ( legend.position = legend_position,
-                                  legend.background = element_rect(fill = "transparent"),
+                                  legend.background = element_rect(fill = "transparent"), # Remove background behind labels
+                                  legend.key = element_blank(),  # Remove background behind circles
                                   legend.text=element_text(size=12),
                                   legend.title =element_text(size=12),
                                   plot.tag.position="topright",
@@ -195,7 +199,7 @@ theme_map_distribution <- theme_light(base_size = base_size) +
                size=size_not_present, shape=3) +
     geom_point(data=filter(df, z >= z_min),
                aes(x=longitude, y=latitude, size=z, color=z, alpha=z) ) +
-    scale_size(name = legend_title, range = c(0, 8),limits = z_limits, breaks=z_breaks)+
+    scale_size(name = legend_title, range = c(0, size_present),limits = z_limits, breaks=z_breaks)+
     scale_alpha_continuous(name=legend_title, range=c(0.5, .9), limits = z_limits, breaks=z_breaks) +
     viridis::scale_color_viridis(option="magma", name=legend_title, limits = z_limits, breaks=z_breaks ) +
     guides( colour = guide_legend()) +
