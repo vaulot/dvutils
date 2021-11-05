@@ -551,7 +551,7 @@ metapr2_export_qs <- function(set_type = "public",
   # Data sets selected ----------------------------------
 
 
-  # For class
+  # For class - 5 sets
 
   if (set_type == "basic"){
     datasets_selected <- metapr2_export_datasets() %>%
