@@ -4,7 +4,7 @@
 \alias{genbank_search}
 \title{Search GenBank}
 \usage{
-genbank_search(query, db = "nuccore", seq_max = 2000)
+genbank_search(query, db = "nuccore", seq_max = 20000)
 }
 \arguments{
 \item{query}{Character string for ENTREZ search}
@@ -14,16 +14,17 @@ genbank_search(query, db = "nuccore", seq_max = 2000)
 \item{seq_max}{Maximum number of sequences to obtain}
 }
 \value{
-Data frame with the following columns
+Data frame with columns with information about the sequences
 \itemize{
 \item genbank_accession
 \item gb_definition
 \item gb_date
 \item gb_organism
+\item ...
 }
 }
 \description{
-Return sequences information from an ENTREZ search query
+Return sequences summary information from an ENTREZ search query
 }
 \examples{
 genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", seq_max = 500)

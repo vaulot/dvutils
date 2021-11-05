@@ -7,32 +7,247 @@
 #' @import genbankr
 #' @import rentrez
 #' @import reutils
-
+#' @import xml2
+#' @import tryCatchLog
 
 
 # Notes :
-#   Genbank taxonomy can be downloaded from : ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/
+#   * Genbank taxonomy can be downloaded from : ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/new_taxdump/
+#   * genbankr provides more detailed information than rentrez but is slower because rentrez can download infos 50 sequences at a time
+# TO DO: modify genbank_download_parse to include both sequence info and features.
+
+
+# genbank_xml_record  ---------------------------------------------------------
+# This function is not exported
+
+genbank_xml_record <- function(gb_xml, seq_length_max) {
+
+  # Modified from https://github.com/ropensci/traits
+
+  xml_helper <- function(y, string) {
+    xml2::xml_text(xml2::xml_find_first(y, string))
+  }
+
+  xml_helper_all <- function(y, string) {
+    y <- xml2::xml_text(xml2::xml_find_all(y, string))
+    if (length(y) == 0) y = NA
+    return(y)
+  }
+
+  tryCatchLog::set.logging.functions( error.log.func = function(msg) invisible(),
+                                      warn.log.func  = function(msg) invisible(),
+                                      info.log.func  = function(msg) invisible())
+
+  sequence = str_to_upper(xml_helper(gb_xml, './GBSeq_sequence'))
+  seq_length = str_length(sequence)
+
+  metadata_one_row <-  tibble (
+    genbank_accession = xml_helper(gb_xml, './GBSeq_primary-accession'),
+    gb_definition = xml_helper(gb_xml, './GBSeq_definition'),
+    gb_division = xml_helper(gb_xml, './GBSeq_division'),
+    gb_project_id = xml_helper(gb_xml, './GBSeq_project'),
+    gb_sequence = case_when(seq_length > seq_length_max ~'',
+                            TRUE ~ sequence),
+    gb_organism = xml_helper(gb_xml, "./GBSeq_organism"),
+    gb_taxonomy = xml_helper(gb_xml, "./GBSeq_taxonomy"),
+    gb_date = xml_helper(gb_xml, "./GBSeq_create-date"),
+    gb_keyword = xml_helper(gb_xml, './/GBSeq_keywords/GBKeyword'),
+    gb_specimen_voucher = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "specimen_voucher"]/GBQualifier_value'),
+    gb_strain = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "strain"]/GBQualifier_value'),
+    gb_isolate = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "isolate"]/GBQualifier_value'),
+    gb_clone = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "clone"]/GBQualifier_value'),
+    gb_collected_by = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "collected_by"]/GBQualifier_value'),
+    gb_culture_collection = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "culture_collection"]/GBQualifier_value'),
+    gb_isolation_source = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "isolation_source"]/GBQualifier_value'),
+    gb_host = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "host"]/GBQualifier_value'),
+    gb_environmental_sample = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "environmental_sample"]/GBQualifier_value'),
+    gb_collection_date = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "collection_date"]/GBQualifier_value'),
+    # Need to remove all carriage returns from notes
+    gb_note = str_replace_all(xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "note"]/GBQualifier_value'), "[\r\n]", " "),
+    gb_organelle = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "organelle"]/GBQualifier_value'),
+    gb_lat_lon = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "lat_lon"]/GBQualifier_value'),
+    gb_country = xml_helper(gb_xml, './/GBQualifier[GBQualifier_name = "country"]/GBQualifier_value'),
+    gb_authors = xml_helper(gb_xml, './/GBReference[GBReference_reference = "1"]/GBReference_authors/GBAuthor'),
+    gb_publication = xml_helper(gb_xml, './/GBReference[GBReference_reference = "1"]/GBReference_title'),
+    gb_journal = xml_helper(gb_xml, './/GBReference[GBReference_reference = "1"]/GBReference_journal')
+  ) %>%
+    tidyr::separate(col=gb_lat_lon,
+                    into=c("latitude","lat_NS", "longitude", "long_EW"),
+                    sep=" ", remove = FALSE, extra = "drop") %>%
+    mutate(pr2_longitude = case_when(str_detect(long_EW,"[EW]") ~ as.numeric(longitude)*ifelse((long_EW == "E"), 1, -1)) ) %>%
+    mutate(pr2_latitude= case_when (str_detect(lat_NS,"[NS]") ~ as.numeric(latitude)*ifelse((lat_NS == "N"), 1, -1)  ) ) %>%
+    mutate(sequence_length = str_length(gb_sequence)) %>%
+    select(-latitude, - longitude, -lat_NS, -long_EW) %>%
+    mutate(pr2_sample_type = case_when(!is.na(gb_isolate) ~ "isolate",
+                                       !is.na(gb_strain)|!is.na(gb_culture_collection) ~ "culture",
+                                       !is.na(gb_environmental_sample) ~ "environmental",
+                                       str_detect(gb_definition, "uncultured|Uncultured") ~ "environmental",
+                                       str_detect(gb_isolation_source, "(?i)water|sediment|ice|plankton|blood|fecal|soil|lake|river|gulf") ~ "environmental",
+                                       str_detect(gb_organism, "metagenom") ~ "environmental",
+                                       !is.na(gb_specimen_voucher)~ "isolate"))
+
+  # Need to catch error in reading the features
+
+  features_one_row <-  tryCatchLog::tryCatchLog({
+    data.frame (
+      genbank_accession = xml_helper(gb_xml, './GBSeq_locus'),
+      gb_feature_location = xml_helper_all(gb_xml, './/GBFeature[GBFeature_key = "rRNA"]/GBFeature_location'),
+      gb_feature_name = xml_helper_all(gb_xml, './/GBFeature[GBFeature_key = "rRNA"]/GBFeature_quals/GBQualifier[GBQualifier_name="product"]/GBQualifier_value')
+    )
+  }
+  ,
+  error=function(e) {
+    warning(stringr::str_c("Cannot read features for file: ", xml_helper(gb_xml, './GBSeq_locus')))
+    features_one_row <- data.frame (
+      genbank_accession = xml_helper(gb_xml, './GBSeq_locus'),
+      gb_feature_location = NA,
+      gb_feature_name = NA
+    )
+    return(features_one_row)
+  }
+  )
+
+  metadata_one_row <- left_join(metadata_one_row, features_one_row, by = "genbank_accession")
+
+  print(metadata_one_row$genbank_accession)
+
+  return(metadata_one_row)
+}
+
+
+
+# genbank_parse_rentrez_xml  ---------------------------------------------
+#'@title Download and parse sequences from GenBank using rentrez and XML
+#'@description
+#'Does not write the GenBank file.
+#'Notes:
+#'* Use only sequence_keep = TRUE for simple gene sequences, else it may crash
+#'* Use acc_step = 1 if several accession numbers point to the same accession number (case of metagenomes).
+#'  In this case the queries are sent one by one and the old accession number is kept.
+#'@param accession Character vector of accession numbers
+#'@param acc_step Integer, number of accession numbers for each query.
+#'@param seq_length_max, maximum length of sequences returned (set to zero to prevent returning sequence)
+#'@param seq_length_discard, if the sequence length is longer than this value, no information is returned.
+#'@return
+#'Data frame with the metadata information.
+#'@examples
+#'gb_metadata <- genbank_parse_rentrez_xml(accession = c("JX015376", "JQ768406", "LT621940"), seq_length_max = 15000)
+
+#'@export
+#'@md
+genbank_parse_rentrez_xml <-function(accession, acc_step = 50, seq_length_max = 15000, seq_length_discard = 300000) {
+
+# for testing
+  # sequence_keep=TRUE
+  # seq_length_max = 300000
+  # acc_step = 50
+  # accession <- c("AH006017","AH006986")
+  # accession <- c("NC_013273","FJ261955") # for testing
+  # i = 1
+  # metadata_only = FALSE
+# end testing
+
+  # The next line is necessary to read the date correctly
+  Sys.setlocale("LC_TIME", "C")
+
+  # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
+  httr::set_config(httr::config(http_version = 0))
+
+  # Use API key to go much faster
+  rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+
+  acc_max = length(accession)
+
+
+  metadata_list <- list()
+
+  for (i in seq(1, acc_max , acc_step)) {
+
+    i_max = min(i+acc_step-1, acc_max)
+    accession_set = accession[i:i_max]
+
+    query = str_c(accession_set, collapse = "|") # if use [ACCN] miss a lot of the metagenomes and genomes
+    GB_entrez <- rentrez::entrez_search(db="nuccore", term=query, use_history=TRUE)
+    # print(query)
+    # print(GB_entrez)
+
+    # The next loop remove any sequences that are longer than seq_length_max
+
+    # If the query returns too many records, there is a problem
+
+    if (GB_entrez$count %in% 1:acc_step) {
+
+      recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history)
+
+      # print(recs)
+
+      accession_set_filtered <- data.frame(
+        genbank_accession = extract_from_esummary(recs, "caption"),
+        seq_length = extract_from_esummary(recs, "slen")
+      ) %>%
+        filter(seq_length < seq_length_discard) %>%
+        pull(genbank_accession)
+    }  else {
+      accession_set_filtered = accession_set
+    }
+
+    # Redo the query but only with the sequences that are short enough
+
+    query = str_c(str_c(accession_set_filtered, "[ACCN]"), collapse = "|") # if use [ACCN] miss a lot of the metagenomes and genomes
+    GB_entrez <- rentrez::entrez_search(db="nuccore", term=query, use_history=TRUE)
+
+
+    # If the query returns too many records, there is a problem
+    if (GB_entrez$count %in% 1:acc_step ) {
+
+      recs <- entrez_fetch(db="nuccore", web_history=GB_entrez$web_history, rettype = "gb", retmode="xml")
+
+      # print("Parsing...")
+      xml <- xml2::read_xml(recs, options = c("HUGE"))
+
+      metadata.df <- lapply(xml2::xml_children(xml), genbank_xml_record, seq_length_max = seq_length_max)
+
+      metadata_list[[i]] <- purrr::reduce(metadata.df, bind_rows)
+
+
+      # Need to check if GB_entrez not empty but also not enormous....
+
+      #      recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history)
+
+    }
+  }
+  # Only combine rows if they are not empty
+  if(length(metadata_list)>0){
+    metadata <- purrr::reduce(metadata_list, bind_rows)
+  } else {
+    metadata <- NULL
+  }
+
+  return(metadata)
+}
+
 
 # genbank_search ---------------------------------------------
 #'@title Search GenBank
 #'@description
-#'Return sequences information from an ENTREZ search query
+#'Return sequences summary information from an ENTREZ search query
 #'@param query Character string for ENTREZ search
 #'@param db Character string for database to be used
 #'@param seq_max Maximum number of sequences to obtain
 #'@return
-#'Data frame with the following columns
+#'Data frame with columns with information about the sequences
 #' * genbank_accession
 #' * gb_definition
 #' * gb_date
 #' * gb_organism
+#' * ...
 #'@examples
 #'genbank_search(query = "28S[TITL] AND rRNA[TITL] AND Chlorophyta[ORGN]", seq_max = 500)
 
 #'@export
 #'@md
 
-genbank_search <-function(query, db="nuccore", seq_max = 2000) {
+genbank_search <-function(query, db="nuccore", seq_max = 20000) {
 
   # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
   httr::set_config(httr::config(http_version = 0))
@@ -43,21 +258,35 @@ genbank_search <-function(query, db="nuccore", seq_max = 2000) {
   GB_entrez <- rentrez::entrez_search(db=db, term=query, use_history=TRUE)
   print(GB_entrez)
 
-  seq_max = min(GB_entrez$count, seq_max)
-  seq_step = 50
-  seq_info <- list()
-  for( seq_start in seq(1,seq_max, seq_step)){
-     recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history, retmax=seq_step, retstart=seq_start)
-     genbank_accession <- extract_from_esummary(recs, "caption")
-     gb_definition <- extract_from_esummary(recs, "title")
-     gb_date <- extract_from_esummary(recs, "createdate")
-     gb_organism <- extract_from_esummary(recs, "organism")
-     gb_info_fields <- extract_from_esummary(recs, "subtype")
-     gb_info_data <- extract_from_esummary(recs, "subname")
-     seq_info[[as.character(seq_start)]] <- data.frame(genbank_accession, gb_definition,
-                                                       gb_date, gb_organism,
-                                                       gb_info_fields, gb_info_data)
-     cat(seq_start+seq_step-1, "sequences obtained\r")
+  if (GB_entrez$count > 0) {
+
+    seq_max = min(GB_entrez$count, seq_max)
+    seq_step = 100
+    seq_info <- list()
+    # First record is 0
+    for( seq_start in seq(0,seq_max-1, seq_step)){
+       recs <- entrez_summary(db=db, web_history=GB_entrez$web_history,
+                              retmax=seq_step, retstart=seq_start)
+       genbank_accession <- extract_from_esummary(recs, "caption")
+       gb_definition <- extract_from_esummary(recs, "title")
+       gb_date <- extract_from_esummary(recs, "createdate")
+       gb_organism <- extract_from_esummary(recs, "organism")
+       gb_strain <- extract_from_esummary(recs, "strain")
+       gb_info_fields <- extract_from_esummary(recs, "subtype")
+       gb_info_data <- extract_from_esummary(recs, "subname")
+       gb_seq_length <- extract_from_esummary(recs, "slen")
+       gb_db <- extract_from_esummary(recs, "sourcedb")
+       gb_project_id <- extract_from_esummary(recs, "projectid")
+       gb_biosample <- extract_from_esummary(recs, "biosample")
+
+
+       seq_info[[as.character(seq_start)]] <- data.frame(genbank_accession, gb_definition,
+                                                         gb_date, gb_organism,gb_strain,
+                                                         gb_info_fields, gb_info_data,
+                                                         gb_seq_length, gb_db,
+                                                         gb_project_id, gb_biosample)
+       cat( nrow(seq_info[[as.character(seq_start)]]), "sequences obtained\r")
+    }
   }
 
   seq_df <- purrr::reduce(seq_info, dplyr::bind_rows)
@@ -106,196 +335,142 @@ genbank_download <-function(accession,directory) {
   return(TRUE)
 }
 
-# genbank_download_parse  ---------------------------------------------
-#'@title Download and parse sequences from GenBank
+# genbank_taxonomy ---------------------------------------------------------
+#'@title Read NCBI taxo
 #'@description
-#'If the GenBank file does not exist it fetches and writes it.
-#'If the file exists it just reads it. It extracts the metadata and return into a a data frame.
+#'Reads directly from NCBI information taxo_lineage from set of taxo_id.
 #'
-#'Note: use only sequence_keep = TRUE for simple gene sequences, else it may crash
-#'@param accession Character vector of accession numbers
-#'@param directory Character, directory name which must end by "/"
-#'@param sequence_keep Logical, if FALSE the sequence is not returned in the file data frame
-#'@param store_file Logical, if FALSE the file is not stored and the sequence is not returned in the file data frame
+#'Note : the full NCBI taxonomy has been uploaded in the PR2 database, so this function is not really necessary.
+#'@param taxo_id  A vector of genbank taxonomy ids
 #'@return
-#'Data frame with the metadata information.
+#'A data frame with 2 columns.
 #'@examples
-#'gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), directory = "genbank/", sequence_keep=TRUE)
-
+#'gb_tax <- genbank_taxonomy(c("1230134", "1230316", "1905175"))
 #'@export
 #'@md
 
-genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store_file=FALSE) {
+genbank_taxonomy <-function(taxo_id) {
 
-  # The next line is necessary to read the date correctly
-  Sys.setlocale("LC_TIME", "C")
+  taxo_lineage <- character()
 
-  # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
-  httr::set_config(httr::config(http_version = 0))
+  for (i in 1:length(taxo_id)) {
+      taxo_lineage[i] <- NA
+    # The commented line is not necessary since we have the id already
+    # If necessary we will the use GB_entry$ids in the following fetch
+	    # GB_entry <- entrez_search(db="taxonomy", str_c(taxo_id[i],[taxID]"))
 
-  # Use API key to go much faster
-  rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+    # Directly getting the entry since we have the taxonomy
+      GB_tax <- rentrez::entrez_fetch(db="taxonomy", id=taxo_id[i], rettype="xml")
 
-  # Create the directory if does not exist (directory must end by "/")
-  if (!fs::dir_exists(directory))
-    { fs::dir_create(directory, recursive = TRUE)}
+    # entrez_fetch returns an XML string from which we extract the lineage
+      taxo_lineage[i] <- str_replace(str_extract(GB_tax,"<Lineage>[a-zA-Z;\\s]+"),"<Lineage>","")
+  }
+  # Binds the 2 columns in a dataframe
+    taxo <- cbind(taxo_id, taxo_lineage)
+    colnames(taxo) <- c("taxo_id", "taxo_lineage")
+    return(taxo)
+
+}
+
+# =============================================
+# ==== Obsolete functions =====================
+# =============================================
+
+# genbank_features  ---------------------------------------------
+#'@title Read features of sequences from GenBank
+#'@description
+#'Return a dataframe containing all features for a vector of accession numbers. The GenBank files must exist.
+#'@param accession Character vector of accession numbers
+#'@param directory Character, directory name which must end by "/"
+#'@return
+#'Data frame with the features information.
+#'@examples
+#'gb_features <- genbank_features(c("JX015376", "JQ768406", "LT621940"), "genbank/")
+
+#'@md
+
+genbank_features <-function(accession,directory) {
 
   # Create empty dataframe
-  metadata <- data.frame()
-  metadata_list <- list()
+  features <- data.frame()
 
   for (i in 1:length(accession)) {
-
-      print(str_c("i = ",i, " - ",accession[i]))
-      GB_file <- str_c(directory,accession[i],".gb")
-
-      GB_entrez <- rentrez::entrez_search(db="nuccore", term=str_c(accession[i],"[ACCN]"))
-      print(GB_entrez)
-
-      if(length(GB_entrez$ids) == 0) {
-        metadata_one_row <- data.frame (
-  		      genbank_accession = accession[i],
-  		      gb_definition = "Genbank entry does not exist anymore")
+    print(str_c("i = ",i, " - ",accession[i]))
+    GB_file <- str_c(directory,accession[i],".gb")
+    if ((file_exists(GB_file))) {
+      GB_entry <- genbankr::readGenBank(GB_file, partial=TRUE)
+      if (length(otherFeatures(GB_entry)) > 0 ) {
+        features_one_accession <- as.data.frame (otherFeatures(GB_entry))
+        features_one_accession$genbank_accession <- accession[i]
+        features <- bind_rows(features, features_one_accession)
       }
-
-      # The following line checks whether the GenBank file exists - if it is there no need to rewrite
-      # and go to GenBank to get it
-
-      if (!(fs::file_exists(GB_file))) {
-            # if the Accession has been found write the file and read the metadata
-            if (length(GB_entrez$ids) > 0) {
-                GB_seq <- rentrez::entrez_fetch(db="nuccore", id=GB_entrez$ids, rettype="gb")
-                write(GB_seq, file = GB_file )
-		            print(str_c("file written to: ", GB_file))
-            }
-      }
-		  # There are some cases where the accession number either
-      #  - does not exist anymore in GenBank (old entry deleted)
-      #  - not yet (new submission not published yet)
-      if ((fs::file_exists(GB_file))) {
-
-		    GB_entry <- tryCatch({genbankr::readGenBank(GB_file, partial=TRUE)}, # Catch error in read the GenBank file...
-		                         error=function(e) warning(stringr::str_c("Cannot read file: ", GB_file),
-		                                                   call. = FALSE, immediate. = TRUE, noBreaks. = TRUE))
-		    if (typeof(GB_entry)=="S4") {
-  		    GB_meta <- sources(GB_entry) # Could use also GB_entry@sources$isolate for example
-  		    # print(GB_meta)
-  		    # print(GB_entry@definition)
-  		    # print(GB_entry@locus)
-
-  		    if (sequence_keep) {
-            one_sequence = as.character(getSeq(GB_entry))
-          } else {
-            one_sequence = NA
-          }
-
-          metadata_one_row <- data.frame (
-  		      genbank_accession = accession[i],
-  		      gb_definition = GB_entry@definition,
-  		      gb_organism = ifelse(is.null(GB_meta$organism), NA, GB_meta$organism),
-  		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
-  		      gb_strain = ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
-  		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
-  		      gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
-  		      gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
-  		      gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
-  		      gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
-  		      gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
-  		      gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
-  		      gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
-  		      gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
-  		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
-  		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
-  		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
-  		      gb_date = lubridate::as_date(str_sub(GB_entry@locus, start =-11),format="%d-%B-%Y", tz = "UTC"),
-  		      gb_locus = str_sub(GB_entry@locus, start =-15, end=-13),
-  		      sequence = one_sequence
-          )
-
-		    } else {
-		       # If genbankr cannot read the file, then use rentrez which has some limitations (e.g. no locus)
-           # cat("GB_entrez$ids : ", GB_entrez$ids) # DEBUG
-
-		       gb_summary <- entrez_summary(db="nuccore", id=GB_entrez$ids)
-
-		       # cat("gb_summary$subname : ", gb_summary$subname) # DEBUG
-           # cat("gb_summary$subtype : ", gb_summary$subtype) # DEBUG
-
-		       GB_meta <- as.list(unlist(str_split(gb_summary$subname, pattern="[|]")))
-           names(GB_meta) <- as.list(unlist(str_split(gb_summary$subtype, pattern="[|]")))
-           print(str_c("date : ", gb_summary$createdate))
-
-		       metadata_one_row <- data.frame (
-  		      genbank_accession = accession[i],
-  		      gb_definition = gb_summary$title,
-  		      gb_organism = gb_summary$organism,
-  		      gb_strain = gb_summary$strain,
-  		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
-  		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
-  		      gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
-  		      gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
-  		      gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
-  		      gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
-  		      gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
-  		      gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
-  		      gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
-  		      gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
-  		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
-  		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
-  		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
-  		      gb_date = lubridate::as_date(gb_summary$createdate,format="%Y/%m/%d", tz = "UTC"),
-  		      gb_locus = "",
-  		      sequence = NA
-  		      )
-		      }
-
-
-          if (!is.na(metadata_one_row$gb_lat_lon)) {
-            # Separate the lat_lon field
-            metadata_one_row <- metadata_one_row %>% separate(col=gb_lat_lon,
-                                                              into=c("latitude","lat_NS", "longitude", "long_EW"),
-                                                              sep=" ", remove = FALSE)
-
-            # If the data are correcly formatted compute pr2_lat and long
-            if (str_detect(metadata_one_row$lat_NS,"[NS]")){
-
-            # compute the two fields
-            metadata_one_row <- metadata_one_row %>%
-              mutate(pr2_longitude=as.numeric(longitude)*ifelse((long_EW == "E"), 1, -1)) %>%
-              mutate(pr2_latitude=as.numeric(latitude)*ifelse((lat_NS == "N"), 1, -1))
-            }
-
-            # Remove fields that are not used
-            metadata_one_row <- metadata_one_row%>%
-              select(-latitude, - longitude, -lat_NS, -long_EW)
-          }
-
-          metadata_one_row$pr2_sample_type <- NULL
-
-          if (!is.na(metadata_one_row$gb_isolate))
-            {metadata_one_row$pr2_sample_type <-"isolate" }
-          else
-            {if (!is.na(metadata_one_row$gb_strain)|!is.na(metadata_one_row$gb_culture_collection))
-              { metadata_one_row$pr2_sample_type <-"culture" }
-          }
-          if (metadata_one_row$gb_locus == "ENV")
-          {metadata_one_row$pr2_sample_type <- "environmental"}
-
-          if (sequence_keep ==TRUE) metadata_one_row$sequence_length <- str_length(metadata_one_row$sequence)
-
-  		    print(str_c("i = ",i, " - ",accession[i], " - gb file read"))
-  		    # print(metadata)
-      }
-   metadata_list[[i]] <- metadata_one_row
-   if (!store_file) file.remove(GB_file)
-
+    }
   }
+  return(features)
+}
 
-  # Only combine rows if they are not empty
-  if(length(metadata_list)>0){
-    metadata <- purrr::reduce(metadata_list, bind_rows)
+
+# genbank_field  ---------------------------------------------------------
+
+#'@title Read a single field from a set of existing GenBank files
+#'@description
+#'Return a vector containing the value of a GenBank field for a vector of accession numbers. The GenBank files must exist
+#'@param accession Character vector of accession numbers
+#'@param directory Character, directory name which must end by "/"
+#'@param field_name must be unquoted !!!
+#'@return
+#'Vector with the field information.
+#'@examples
+#'gb_organism <- genbank_field(c("JX015376", "JQ768406", "LT621940"), "genbank/", organism)
+
+#'@md
+
+genbank_field <-function(accession, directory, field_name) {
+
+  field_value <- character()
+  for (i in 1:length(accession)) {
+    print(str_c("i = ",i, " - ",accession[i]))
+    GB_file <- str_c(directory,accession[i],".gb")
+    field_value[i] <- NA
+    if (file_exists(GB_file)) {
+      GB_entry <- genbankr::readGenBank(GB_file)                                    # Get the GenBank file
+      GB_meta <- sources(GB_entry)                                        # Store the metadata associated with the
+      field_value[i] <- ifelse(is.null(eval(substitute(GB_meta$field_name))), NA, eval(substitute(GB_meta$field_name)))
+    }
   }
-  return(metadata)
+  return(field_value)
+}
+
+# genbank_locus ---------------------------------------------------------
+
+#'@title Read locus from a set of existing GenBank files
+#'@description
+#'Return a vector containing the value of a GenBank locus for a vector of accession numbers. The GenBank files must exist
+#'@param accession Character vector of accession numbers
+#'@param directory Character, directory name which must end by "/"
+#'@return
+#'Vector with the locus information.
+#'@examples
+#'gb_locus <- genbank_locus(c("JX015376", "JQ768406", "LT621940"), "genbank/")
+
+#'@md
+
+genbank_locus <-function(accession, directory) {
+
+  field_value <- character()
+
+  for (i in 1:length(accession)) {
+    print(str_c("i = ",i, " - ",accession[i]))
+    GB_file <- str_c(directory,accession[i],".gb")
+    field_value[i] <-NA
+    if (file_exists(GB_file)) {
+      GB_entry <- genbankr::readGenBank(GB_file)                                    # Get the GenBank file
+      GB_meta <- sources(GB_entry)                                        # Store the metadata associated with the locus
+      field_value[i] <- str_sub(GB_entry@locus, start =-15, end=-12)
+
+    }
+  }
+  return(field_value)
 }
 
 # genbank_download_parse_rentrez  ---------------------------------------------
@@ -314,7 +489,6 @@ genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store
 #'@examples
 #'gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), sequence_keep=TRUE)
 
-#'@export
 #'@md
 genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_step = 50) {
 
@@ -353,8 +527,8 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_ste
         writeLines(sequences, tmp)
         sequences <- readDNAStringSet(tmp)
         sequences <- data.frame(gb_sequence=sequences) %>%
-                    rownames_to_column(var = "seq_name") %>%
-                    tidyr::separate(col = seq_name, into = "genbank_accession", sep = "[. ]", extra = "drop" )
+          rownames_to_column(var = "seq_name") %>%
+          tidyr::separate(col = seq_name, into = "genbank_accession", sep = "[. ]", extra = "drop" )
 
       }
 
@@ -369,33 +543,33 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_ste
       gb_project_id = rentrez::extract_from_esummary(recs, "projectid")
 
       for (j in 1:length(recs)) {
-          # j = 1 # for testing
+        # j = 1 # for testing
 
-          GB_meta <- as.list(unlist(str_split(gb_info_data[j], pattern="[|]")))
-          names(GB_meta) <- as.list(unlist(str_split(gb_info_fields[j], pattern="[|]")))
+        GB_meta <- as.list(unlist(str_split(gb_info_data[j], pattern="[|]")))
+        names(GB_meta) <- as.list(unlist(str_split(gb_info_fields[j], pattern="[|]")))
 
-          metadata_one_row <- data.frame (
-          		      genbank_accession = genbank_accession[j],
-                    gb_id = ifelse(is.null(gb_id[j]), NA, gb_id[j]),
-                    gb_project_id = ifelse(is.null(gb_project_id[j]), NA, gb_project_id[j]),
-          		      gb_definition = ifelse(is.null(gb_definition[j]), NA, gb_definition[j]),
-          		      gb_organism = ifelse(is.null(gb_organism[j]), NA, gb_organism[j]),
-          		      gb_strain =  ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
-          		      gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
-          		      gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
-          		      gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
-          		      gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
-          		      gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
-          		      gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
-          		      gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
-          		      gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
-          		      gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
-          		      gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
-          		      gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
-          		      gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
-          		      gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
-          		      gb_date = lubridate::as_date(gb_date[j],format="%Y/%m/%d", tz = "UTC")
-          		      ) %>%
+        metadata_one_row <- data.frame (
+          genbank_accession = genbank_accession[j],
+          gb_id = ifelse(is.null(gb_id[j]), NA, gb_id[j]),
+          gb_project_id = ifelse(is.null(gb_project_id[j]), NA, gb_project_id[j]),
+          gb_definition = ifelse(is.null(gb_definition[j]), NA, gb_definition[j]),
+          gb_organism = ifelse(is.null(gb_organism[j]), NA, gb_organism[j]),
+          gb_strain =  ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
+          gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
+          gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
+          gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
+          gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
+          gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
+          gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
+          gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
+          gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
+          gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
+          gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
+          gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
+          gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
+          gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
+          gb_date = lubridate::as_date(gb_date[j],format="%Y/%m/%d", tz = "UTC")
+        ) %>%
           tidyr::separate(col=gb_lat_lon,
                           into=c("latitude","lat_NS", "longitude", "long_EW"),
                           sep=" ", remove = FALSE, extra = "drop") %>%
@@ -406,22 +580,22 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_ste
                                              !is.na(gb_strain)|!is.na(gb_culture_collection) ~ "culture",
                                              !is.na(gb_environmental_sample) ~ "environmental"))
 
-          if (acc_step == 1) {
-            metadata_one_row <- metadata_one_row %>%
-              mutate(genbank_accession_old = accession[i])
-          }
+        if (acc_step == 1) {
+          metadata_one_row <- metadata_one_row %>%
+            mutate(genbank_accession_old = accession[i])
+        }
 
 
-          if (sequence_keep) {
-             metadata_one_row <- left_join( metadata_one_row, sequences) %>%
-                                 mutate(sequence_length = str_length(gb_sequence))
-          }
+        if (sequence_keep) {
+          metadata_one_row <- left_join( metadata_one_row, sequences) %>%
+            mutate(sequence_length = str_length(gb_sequence))
+        }
 
 
-         metadata_list[[i+j-1]] <-  metadata_one_row
+        metadata_list[[i+j-1]] <-  metadata_one_row
       }
 
-     cat(length(recs), " sequences obtained\n")
+      cat(length(recs), " sequences obtained\n")
 
     }
   }
@@ -435,140 +609,194 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_ste
   return(metadata)
 }
 
-
-# genbank_features  ---------------------------------------------
-#'@title Read features of sequences from GenBank
+# genbank_download_parse  ---------------------------------------------
+#'@title Download and parse sequences from GenBank
 #'@description
-#'Return a dataframe containing all features for a vector of accession numbers. The GenBank files must exist.
+#'If the GenBank file does not exist it fetches and writes it.
+#'If the file exists it just reads it. It extracts the metadata and return into a a data frame.
+#'
+#'Note: use only sequence_keep = TRUE for simple gene sequences, else it may crash
 #'@param accession Character vector of accession numbers
 #'@param directory Character, directory name which must end by "/"
+#'@param sequence_keep Logical, if FALSE the sequence is not returned in the file data frame
+#'@param store_file Logical, if FALSE the file is not stored and the sequence is not returned in the file data frame
 #'@return
-#'Data frame with the features information.
+#'Data frame with the metadata information.
 #'@examples
-#'gb_features <- genbank_features(c("JX015376", "JQ768406", "LT621940"), "genbank/")
+#'gb_metadata <- genbank_download_parse(accession = c("JX015376", "JQ768406", "LT621940"), directory = "genbank/", sequence_keep=TRUE)
 
-#'@export
 #'@md
 
-genbank_features <-function(accession,directory) {
+genbank_download_parse <-function(accession,directory, sequence_keep=TRUE, store_file=FALSE) {
+
+  # The next line is necessary to read the date correctly
+  Sys.setlocale("LC_TIME", "C")
+
+  # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
+  httr::set_config(httr::config(http_version = 0))
+
+  # Use API key to go much faster
+  rentrez::set_entrez_key("97ce6407215b5d1b6f5ee3ce8a6703793608")
+
+  # Create the directory if does not exist (directory must end by "/")
+  if (!fs::dir_exists(directory))
+  { fs::dir_create(directory, recursive = TRUE)}
 
   # Create empty dataframe
-  features <- data.frame()
+  metadata <- data.frame()
+  metadata_list <- list()
 
   for (i in 1:length(accession)) {
-      print(str_c("i = ",i, " - ",accession[i]))
-      GB_file <- str_c(directory,accession[i],".gb")
-      if ((file_exists(GB_file))) {
-		    GB_entry <- genbankr::readGenBank(GB_file, partial=TRUE)
-		    if (length(otherFeatures(GB_entry)) > 0 ) {
-        features_one_accession <- as.data.frame (otherFeatures(GB_entry))
-        features_one_accession$genbank_accession <- accession[i]
-		    features <- bind_rows(features, features_one_accession)
-        }
+
+    print(str_c("i = ",i, " - ",accession[i]))
+    GB_file <- str_c(directory,accession[i],".gb")
+
+    GB_entrez <- rentrez::entrez_search(db="nuccore", term=str_c(accession[i],"[ACCN]"))
+    print(GB_entrez)
+
+    if(length(GB_entrez$ids) == 0) {
+      metadata_one_row <- data.frame (
+        genbank_accession = accession[i],
+        gb_definition = "Genbank entry does not exist anymore")
+    }
+
+    # The following line checks whether the GenBank file exists - if it is there no need to rewrite
+    # and go to GenBank to get it
+
+    if (!(fs::file_exists(GB_file))) {
+      # if the Accession has been found write the file and read the metadata
+      if (length(GB_entrez$ids) > 0) {
+        GB_seq <- rentrez::entrez_fetch(db="nuccore", id=GB_entrez$ids, rettype="gb")
+        write(GB_seq, file = GB_file )
+        print(str_c("file written to: ", GB_file))
       }
+    }
+    # There are some cases where the accession number either
+    #  - does not exist anymore in GenBank (old entry deleted)
+    #  - not yet (new submission not published yet)
+    if ((fs::file_exists(GB_file))) {
+
+      GB_entry <- tryCatch({genbankr::readGenBank(GB_file, partial=TRUE)}, # Catch error in read the GenBank file...
+                           error=function(e) warning(stringr::str_c("Cannot read file: ", GB_file),
+                                                     call. = FALSE, immediate. = TRUE, noBreaks. = TRUE))
+      if (typeof(GB_entry)=="S4") {
+        GB_meta <- sources(GB_entry) # Could use also GB_entry@sources$isolate for example
+        # print(GB_meta)
+        # print(GB_entry@definition)
+        # print(GB_entry@locus)
+
+        if (sequence_keep) {
+          one_sequence = as.character(getSeq(GB_entry))
+        } else {
+          one_sequence = NA
+        }
+
+        metadata_one_row <- data.frame (
+          genbank_accession = accession[i],
+          gb_definition = GB_entry@definition,
+          gb_organism = ifelse(is.null(GB_meta$organism), NA, GB_meta$organism),
+          gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
+          gb_strain = ifelse(is.null(GB_meta$strain), NA, GB_meta$strain),
+          gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
+          gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
+          gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
+          gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
+          gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
+          gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
+          gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
+          gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
+          gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
+          gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
+          gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
+          gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
+          gb_date = lubridate::as_date(str_sub(GB_entry@locus, start =-11),format="%d-%B-%Y", tz = "UTC"),
+          gb_locus = str_sub(GB_entry@locus, start =-15, end=-13),
+          sequence = one_sequence
+        )
+
+      } else {
+        # If genbankr cannot read the file, then use rentrez which has some limitations (e.g. no locus)
+        # cat("GB_entrez$ids : ", GB_entrez$ids) # DEBUG
+
+        gb_summary <- entrez_summary(db="nuccore", id=GB_entrez$ids)
+
+        # cat("gb_summary$subname : ", gb_summary$subname) # DEBUG
+        # cat("gb_summary$subtype : ", gb_summary$subtype) # DEBUG
+
+        GB_meta <- as.list(unlist(str_split(gb_summary$subname, pattern="[|]")))
+        names(GB_meta) <- as.list(unlist(str_split(gb_summary$subtype, pattern="[|]")))
+        print(str_c("date : ", gb_summary$createdate))
+
+        metadata_one_row <- data.frame (
+          genbank_accession = accession[i],
+          gb_definition = gb_summary$title,
+          gb_organism = gb_summary$organism,
+          gb_strain = gb_summary$strain,
+          gb_organelle = ifelse(is.null(GB_meta$organelle), NA, GB_meta$organelle),
+          gb_isolate = ifelse(is.null(GB_meta$isolate), NA, GB_meta$isolate),
+          gb_clone = ifelse(is.null(GB_meta$clone), NA, GB_meta$clone),
+          gb_specimen_voucher = ifelse(is.null(GB_meta$specimen_voucher), NA, GB_meta$specimen_voucher),
+          gb_collected_by = ifelse(is.null(GB_meta$collected_by), NA, GB_meta$collected_by),
+          gb_lat_lon = ifelse(is.null(GB_meta$lat_lon), NA, GB_meta$lat_lon),
+          gb_note = ifelse(is.null(GB_meta$note), NA, GB_meta$note),
+          gb_culture_collection = ifelse(is.null(GB_meta$culture_collection), NA, GB_meta$culture_collection),
+          gb_isolation_source = ifelse(is.null(GB_meta$isolation_source), NA, GB_meta$isolation_source),
+          gb_host = ifelse(is.null(GB_meta$host), NA, GB_meta$host),
+          gb_environmental_sample = ifelse(is.null(GB_meta$environmental_sample), NA, GB_meta$environmental_sample),
+          gb_collection_date = ifelse(is.null(GB_meta$collection_date), NA, GB_meta$collection_date),
+          gb_country = ifelse(is.null(GB_meta$country), NA, GB_meta$country),
+          gb_date = lubridate::as_date(gb_summary$createdate,format="%Y/%m/%d", tz = "UTC"),
+          gb_locus = "",
+          sequence = NA
+        )
+      }
+
+
+      if (!is.na(metadata_one_row$gb_lat_lon)) {
+        # Separate the lat_lon field
+        metadata_one_row <- metadata_one_row %>% separate(col=gb_lat_lon,
+                                                          into=c("latitude","lat_NS", "longitude", "long_EW"),
+                                                          sep=" ", remove = FALSE)
+
+        # If the data are correcly formatted compute pr2_lat and long
+        if (str_detect(metadata_one_row$lat_NS,"[NS]")){
+
+          # compute the two fields
+          metadata_one_row <- metadata_one_row %>%
+            mutate(pr2_longitude=as.numeric(longitude)*ifelse((long_EW == "E"), 1, -1)) %>%
+            mutate(pr2_latitude=as.numeric(latitude)*ifelse((lat_NS == "N"), 1, -1))
+        }
+
+        # Remove fields that are not used
+        metadata_one_row <- metadata_one_row%>%
+          select(-latitude, - longitude, -lat_NS, -long_EW)
+      }
+
+      metadata_one_row$pr2_sample_type <- NULL
+
+      if (!is.na(metadata_one_row$gb_isolate))
+      {metadata_one_row$pr2_sample_type <-"isolate" }
+      else
+      {if (!is.na(metadata_one_row$gb_strain)|!is.na(metadata_one_row$gb_culture_collection))
+      { metadata_one_row$pr2_sample_type <-"culture" }
+      }
+      if (metadata_one_row$gb_locus == "ENV")
+      {metadata_one_row$pr2_sample_type <- "environmental"}
+
+      if (sequence_keep ==TRUE) metadata_one_row$sequence_length <- str_length(metadata_one_row$sequence)
+
+      print(str_c("i = ",i, " - ",accession[i], " - gb file read"))
+      # print(metadata)
+    }
+    metadata_list[[i]] <- metadata_one_row
+    if (!store_file) file.remove(GB_file)
+
   }
-  return(features)
+
+  # Only combine rows if they are not empty
+  if(length(metadata_list)>0){
+    metadata <- purrr::reduce(metadata_list, bind_rows)
+  }
+  return(metadata)
 }
 
-
-# genbank_field  ---------------------------------------------------------
-
-#'@title Read a single field from a set of existing GenBank files
-#'@description
-#'Return a vector containing the value of a GenBank field for a vector of accession numbers. The GenBank files must exist
-#'@param accession Character vector of accession numbers
-#'@param directory Character, directory name which must end by "/"
-#'@param field_name must be unquoted !!!
-#'@return
-#'Vector with the field information.
-#'@examples
-#'gb_organism <- genbank_field(c("JX015376", "JQ768406", "LT621940"), "genbank/", organism)
-
-#'@export
-#'@md
-
-genbank_field <-function(accession, directory, field_name) {
-
-  field_value <- character()
-  for (i in 1:length(accession)) {
-    print(str_c("i = ",i, " - ",accession[i]))
-	  GB_file <- str_c(directory,accession[i],".gb")
-	  field_value[i] <- NA
-    if (file_exists(GB_file)) {
-        GB_entry <- genbankr::readGenBank(GB_file)                                    # Get the GenBank file
-		    GB_meta <- sources(GB_entry)                                        # Store the metadata associated with the
-		    field_value[i] <- ifelse(is.null(eval(substitute(GB_meta$field_name))), NA, eval(substitute(GB_meta$field_name)))
-	     }
-  }
-      return(field_value)
-}
-
-# genbank_locus ---------------------------------------------------------
-
-#'@title Read locus from a set of existing GenBank files
-#'@description
-#'Return a vector containing the value of a GenBank locus for a vector of accession numbers. The GenBank files must exist
-#'@param accession Character vector of accession numbers
-#'@param directory Character, directory name which must end by "/"
-#'@return
-#'Vector with the locus information.
-#'@examples
-#'gb_locus <- genbank_locus(c("JX015376", "JQ768406", "LT621940"), "genbank/")
-
-#'@export
-#'@md
-
-genbank_locus <-function(accession, directory) {
-
-  field_value <- character()
-
-  for (i in 1:length(accession)) {
-    print(str_c("i = ",i, " - ",accession[i]))
-	  GB_file <- str_c(directory,accession[i],".gb")
-	  field_value[i] <-NA
-    if (file_exists(GB_file)) {
-        GB_entry <- genbankr::readGenBank(GB_file)                                    # Get the GenBank file
-		    GB_meta <- sources(GB_entry)                                        # Store the metadata associated with the locus
-		    field_value[i] <- str_sub(GB_entry@locus, start =-15, end=-12)
-
-	     }
-  }
-      return(field_value)
-}
-
-# genbank_taxonomy ---------------------------------------------------------
-#'@title Read NCBI taxo
-#'@description
-#'Reads directly from NCBI information taxo_lineage from set of taxo_id.
-#'
-#'Note : the full NCBI taxonomy has been uploaded in the PR2 database, so this function is not really necessary.
-#'@param taxo_id  A vector of genbank taxonomy ids
-#'@return
-#'A data frame with 2 columns.
-#'@examples
-#'gb_tax <- genbank_taxonomy(c("1230134", "1230316", "1905175"))
-#'@export
-#'@md
-
-genbank_taxonomy <-function(taxo_id) {
-
-  taxo_lineage <- character()
-
-  for (i in 1:length(taxo_id)) {
-      taxo_lineage[i] <- NA
-    # The commented line is not necessary since we have the id already
-    # If necessary we will the use GB_entry$ids in the following fetch
-	    # GB_entry <- entrez_search(db="taxonomy", str_c(taxo_id[i],[taxID]"))
-
-    # Directly getting the entry since we have the taxonomy
-      GB_tax <- rentrez::entrez_fetch(db="taxonomy", id=taxo_id[i], rettype="xml")
-
-    # entrez_fetch returns an XML string from which we extract the lineage
-      taxo_lineage[i] <- str_replace(str_extract(GB_tax,"<Lineage>[a-zA-Z;\\s]+"),"<Lineage>","")
-  }
-  # Binds the 2 columns in a dataframe
-    taxo <- cbind(taxo_id, taxo_lineage)
-    colnames(taxo) <- c("taxo_id", "taxo_lineage")
-    return(taxo)
-
-}

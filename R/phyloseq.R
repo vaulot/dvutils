@@ -252,7 +252,7 @@ phyloseq_long_treemap <- function(df, group1, group2, title, colors=NULL, label_
  return(treemap_list)
  }
 
-# phyloseq_long_asv_bargraph : Do a bar graph of top asvs based on the long version of a phyloseq file ------
+# phyloseq_long_bargraph : Do a bar graph of top asvs based on the long version of a phyloseq file ------
 
 #' @title Do a bar graph of top taxo_level or asvs based on the long version of a phyloseq file
 #' @description Plot the bar graph and returns a list with a ggplot and a df with the summary of the data
@@ -308,8 +308,8 @@ phyloseq_long_bargraph <- function(df, n_bars=30, title="", text_scaling = 0.75,
     geom_col(aes(x=reorder(bar_label, n_reads), y=n_reads, fill={{taxo_level_fill}})) +
     coord_flip() +
     theme_bw() +
-    theme(axis.text.x = element_text(size = 16*text_scaling, angle = 0, hjust = 1, vjust = 1)) +
-    theme(axis.text.y = element_text(size = 16*text_scaling, angle = 0, hjust = 0, vjust = 0)) +
+    # theme(axis.text.x = element_text(size = 16*text_scaling, angle = 0, hjust = 1, vjust = 1)) +
+    # theme(axis.text.y = element_text(size = 16*text_scaling, angle = 0, hjust = 0, vjust = 0)) +
     theme(legend.title = element_text(size = 24*text_scaling)) +
     theme(legend.text = element_text(size = 16*text_scaling)) +
     xlab("") + ylab("Number of reads") +
@@ -319,7 +319,9 @@ phyloseq_long_bargraph <- function(df, n_bars=30, title="", text_scaling = 0.75,
     # theme(axis.text=element_text(size=14), legend.text = element_text(size=16)) +
     theme(legend.position = "top", legend.box = "vertical") +
     guides(fill = guide_legend(title.position="top",
-                               ncol = 4, byrow = TRUE))
+                               ncol = 4, byrow = TRUE)) +
+    theme(axis.text.x = element_text(size = 16*text_scaling, angle = 0, hjust = 0.5, vjust = 0.5)) +
+    theme(axis.text.y = element_text(size = 16*text_scaling, angle = 0, hjust = 0, vjust = 0.5))
 
    print(gg)
    treemap_list <- list(gg = gg, df=df)

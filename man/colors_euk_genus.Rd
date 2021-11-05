@@ -4,7 +4,9 @@
 \name{colors_euk_genus}
 \alias{colors_euk_genus}
 \title{Color for genera.}
-\format{structure(colors_euk_genus$color_name,.Names=colors_euk_genus$genus)}
+\format{
+structure(colors_euk_genus$color_name,.Names=colors_euk_genus$genus)
+}
 \source{
 data-raw/colors.xlsx (update by running  data-raw/data_update.R )
 }

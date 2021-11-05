@@ -36,7 +36,11 @@ This will save the pr2 database in variety of format. The files are compressed a
 Notes
 \itemize{
 \item The data are NOT filtered in any way, this should be done before saving
-\item The following fields are needed to create the sequence labels : pr2_sample_type, gb_strain, gb_clone, gb_specimen_voucher
+\item The following fields are needed to create the sequence labels :
+\itemize{
+\item pr2_sample_type, gb_strain, gb_clone, gb_specimen_voucher
+\item gene, organelle
+}
 }
 }
 \examples{

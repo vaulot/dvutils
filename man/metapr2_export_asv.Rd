@@ -9,8 +9,12 @@ metapr2_export_asv(
   taxo_name = "Eukaryota",
   boot_level = class_boot,
   boot_min = 0,
+  assigned_with = "dada2",
+  reference_database = "pr2_4.14.0",
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
-  dataset_id_selected = c(1:100),
+  dataset_id_selected = c(1:500),
+  filter_samples = NULL,
+  filter_metadata = NULL,
   export_long_xls = FALSE,
   export_wide_xls = FALSE,
   export_sample_xls = FALSE,
@@ -30,9 +34,17 @@ metapr2_export_asv(
 
 \item{boot_min}{Minimum bootstrap value at the class level, 0 if you want to get all asvs}
 
+\item{assigned_with}{Program used for assignement - "dada2" or "decipher"}
+
+\item{reference_database}{Reference database used - "pr2_4.14.0" or "pr2_4.12.0"}
+
 \item{directory}{Directory where the files are saved (finish with /)}
 
 \item{dataset_id_selected}{Integer vector, e.g. 23 or c(21, 23) or 21:23}
+
+\item{filter_samples}{Character expression for filter, e.g. "DNA_RNA == 'DNA'" (use single quotes inside double quotes)}
+
+\item{filter_metadata}{Character expression for filter, e.g. "substrate == 'sediment trap material'" (use single quotes inside double quotes)}
 
 \item{export_long_xls}{If TRUE, an xlsx file is produced containing the final long data frame}
 

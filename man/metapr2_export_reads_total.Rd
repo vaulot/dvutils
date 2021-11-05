@@ -6,7 +6,7 @@
 \usage{
 metapr2_export_reads_total(
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
-  dataset_id_selected = c(1:100)
+  dataset_id_selected = c(1:500)
 )
 }
 \arguments{

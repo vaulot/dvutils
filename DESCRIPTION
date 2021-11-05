@@ -34,12 +34,13 @@ Imports:
   RMySQL,
   R.utils,
   rworldmap,
+  rio,
   stringr, 
   tibble,
   tidyr,
   treemap,
   viridis
-RoxygenNote: 7.0.2
+RoxygenNote: 7.1.2
 Suggests: testthat
 Roxygen: list(markdown = FALSE)
 Depends: 

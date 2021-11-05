@@ -2,6 +2,7 @@
 #' @import tidyr
 #' @import stringr
 #' @import tibble
+#' @import Biostrings
 
 # fasta_write : Write fasta file with taxo ----------------------------------------------
 
@@ -394,7 +395,7 @@ dada2_export <- function(df, file_name, taxo_levels_number = 9 ) {
 #' @md
 #'
 dada2_assign <- function(seq_file_name,
-                         ref_file_name="C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.10.0/pr2_version_4.10.0_dada2.fasta.gz",
+                         ref_file_name="C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.12.0/pr2_version_4.12.0_18S_dada2.fasta.gz",
                          tax_levels=c("kingdom", "supergroup", "division", "class", "order",
                                       "family", "genus", "species")){
 
@@ -537,3 +538,23 @@ pcr_sequences <- function(fwd_seq, rev_seq, target_seq, mismatches=0){
 
  return(df$amplicon)
  }
+
+
+# seq_reverse_complement : Reverse complement ----------------------------------------------
+
+#' @title Reverse complement string
+#'
+#' @description
+#' Reverse complement a set of sequences
+#' @param seq vector of sequences
+#' @return
+#' Reverse complement vector of strings
+#' @examples
+#' seq_reverse_complement (c("ATTTTCGGG", "ATTTTCGGG"))
+#' @md
+#' @export
+seq_reverse_complement <- function(seqs){
+
+  return(as.character(reverseComplement(DNAStringSet(seqs))))
+
+}

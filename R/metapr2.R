@@ -1,8 +1,8 @@
 #' @import dplyr
 #' @import tidyr
 #' @import stringr
-#' @import openxlsx
 #' @import tibble
+#' @importFrom rio export
 
 # metapr2_export_asv -------------------------------------------------------
 #' @title Exports the metapr2 database
@@ -24,8 +24,11 @@
 #' @param taxo_name  The name of the taxonomic level selected, e.g. "Chlorophyta", can be a vector c("Chlorophyta", "Haptophyta")
 #' @param boot_level The taxonomic level for bootstrap filtering (do not quote), e.g. class_boot or genus_boot
 #' @param boot_min  Minimum bootstrap value at the class level, 0 if you want to get all asvs
+#' @param assigned_with Program used for assignement - "dada2" or "decipher"
+#' @param reference_database Reference database used - "pr2_4.14.0" or "pr2_4.12.0"
 #' @param directory  Directory where the files are saved (finish with /)
 #' @param dataset_id_selected  Integer vector, e.g. 23 or c(21, 23) or 21:23
+#' @param filter_samples Character expression for filter, e.g. "DNA_RNA == 'DNA'" (use single quotes inside double quotes)
 #' @param filter_metadata  Character expression for filter, e.g. "substrate == 'sediment trap material'" (use single quotes inside double quotes)
 #' @param export_long_xls  If TRUE, an xlsx file is produced containing the final long data frame
 #' @param export_wide_xls  If TRUE, an xlsx file is produced containing the final wide data frame
@@ -54,8 +57,11 @@
 #'
 metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                                boot_level = class_boot, boot_min = 0,
+                               assigned_with = "dada2",
+                               reference_database = "pr2_4.14.0",
                                directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
                                dataset_id_selected = c(1:500),
+                               filter_samples = NULL,
                                filter_metadata = NULL,
                                export_long_xls=FALSE,
                                export_wide_xls=FALSE,
@@ -66,12 +72,16 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                                use_hash = FALSE,
                                sum_reads_min = 0) {
 
+  taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species")
+  taxo_levels_boot <- str_c(taxo_levels, "_boot")
+
   # Define a variable to hold the data set id as character
   dataset_id_char <- case_when ((500 %in% dataset_id_selected) ~ "all",
+                                length(dataset_id_selected) > 5 ~ "several",
                                 TRUE ~ str_c(dataset_id_selected, collapse = "_"))
 
 
-  # Read the database and already filter for selected records
+  # Read the database and already filter for selected records -------------------
   metapr2_db <- db_info("metapr2_google")
   metapr2_db_con <- db_connect(metapr2_db)
 
@@ -81,14 +91,36 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     filter(is.na(chimera)) %>%
     collect()
 
-  # Create a label for the taxons selected to be used for the files
+  # Use the new assignements
+  if(!(assigned_with %in% c("dada2", "decipher"))) {assigned_with = "dada2"}
+  if(!(reference_database %in% c("pr2_4.12.0", "pr2_4.14.0"))) {reference_database = "pr2_4.14.0"}
+
+  if(reference_database == "pr2_4.14.0") {
+    if (assigned_with == "dada2") {
+      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.14.0") %>%
+        collect()
+    } else if (assigned_with == "decipher") {
+      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_decipher_pr2_4.14.0") %>%
+        collect()
+    }
+
+    if(reference_database == "pr2_4.12.0") {
+        asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.12.0")
+      }
+
+    asv_set <- asv_set %>%
+      select(-any_of(c(taxo_levels, taxo_levels_boot))) %>%
+      left_join(asv_set_updated, by = c("sequence_hash" = "sequence_hash"))
+  }
+
+  # Create a label for the taxons selected to be used for the files -------------------
   if(length(taxo_name) > 1){
     taxo_name_label <- str_c(str_sub(taxo_name, 1, 5), collapse="_")
   } else {
     taxo_name_label <- taxo_name
   }
 
-  # Filter the asv based on the datasets selected and the minimum bootstrap
+  # Filter the asv based on the datasets selected and the minimum bootstrap -------------------
   # asv_set <- asv_set %>%
   #    filter(dataset_id %in% dataset_id_selected)
 
@@ -106,19 +138,27 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     filter(!is.na(file_code)) %>%   # Remove all samples that have not been processed
     collect()
 
+  # Filter samples
+  if (!is.null(filter_samples)) {
+    metapr2_samples <- metapr2_samples %>%
+      filter(eval(rlang::parse_expr(filter_samples)))
+  }
+
   metapr2_metadata <- tbl(metapr2_db_con, "metapr2_metadata") %>%
     collect()
 
+  # Filter metadata
   if (!is.null(filter_metadata)) {
     metapr2_metadata <- metapr2_metadata %>%
       filter(eval(rlang::parse_expr(filter_metadata)))
   }
 
-  metapr2_datasets <- tbl(metapr2_db_con, "metapr2_datasets") %>% collect()
+  metapr2_datasets <- tbl(metapr2_db_con, "metapr2_datasets") %>%
+    collect()
 
   db_disconnect(metapr2_db_con)
 
-  # Merging together asvs with same hash value
+  # Merging together asvs with same hash value -------------------
 
   if (use_hash){
     asv_fasta <- asv_set %>%
@@ -135,20 +175,23 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     # Use a inner_join here so that if no metadata then sample is not found in sample list
     inner_join(metapr2_metadata) %>%
     filter(dataset_id %in% dataset_id_selected) %>%
+    left_join(metapr2_datasets, by = c("dataset_id" = "dataset_id")) %>%
+    select(-contains(c("dada2", "primer", "web")), -dataset_path) %>%
     # This removes all the column that are empty
     select_if(~!all(is.na(.)))
 
   asv_set <-  asv_set %>%
     left_join(metapr2_asv_abundance) %>%
-    left_join(metapr2_samples) %>%
+    # Use a inner_join here so that if no sample then sample is not found in asv_set
+    inner_join(metapr2_samples) %>%
     # Use a inner_join here so that if no metadata then sample is not found in asv_set
     inner_join(metapr2_metadata) %>%
-    left_join(select(metapr2_datasets, -gene, -gene_region), by = c("dataset_id" = "dataset_id")) %>%
+    left_join(metapr2_datasets, by = c("dataset_id" = "dataset_id")) %>%
     select(-contains(c("dada2", "primer", "paper", "web")), -dataset_path, -asv_id) %>%
     # Next line removes all the column that are empty
     select_if(~!all(is.na(.)))
 
-  # Merging together asvs with same hash value
+  # Merging together asvs with same hash value -------------------
 
   if (use_hash) {
     asv_set <- asv_set %>%
@@ -158,17 +201,19 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   # Compute abundance of ASVs
 
   asv_set_number <- asv_set %>%
-    count(asv_code, wt=n_reads, sort = TRUE) %>%
-    filter(n >= sum_reads_min)
+    count(asv_code, wt=n_reads, sort = TRUE, name = "sum_reads_asv") %>%
+    filter(sum_reads_asv >= sum_reads_min)
 
-  # Remove the low abundance ASVs
+  # Remove the low abundance ASVs -------------------
 
   asv_set <- asv_set %>%
     filter(asv_code %in% asv_set_number$asv_code)
   asv_fasta <- asv_fasta %>%
-    filter(asv_code %in% asv_set_number$asv_code)
+    filter(asv_code %in% asv_set_number$asv_code) %>%
+    left_join(asv_set_number) %>%
+    arrange(desc(sum_reads_asv))
 
-  # Compute the abundance of reads per sample for all and for photosynthetic groups
+  # Compute the abundance of reads per sample for all and for photosynthetic groups ---
 
   sample_all_reads <- asv_set %>%
     count(file_code, wt=n_reads, name="reads_corrected_total")
@@ -181,7 +226,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
       (class == "Filosa-Chlorarachnea")) %>%
     count(file_code, wt=n_reads, name="reads_corrected_photo")
 
-  # Add corrected counts to asv_set and sample_list
+  # Add corrected counts to asv_set and sample_list -------------------
 
   asv_set <- asv_set %>%
     left_join(sample_all_reads) %>%
@@ -195,7 +240,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     filter(!is.na(reads_corrected_total))
 
 
-  # Filter the ASVs for taxonomic group and minimum bootstrap
+  # Filter the ASVs for taxonomic group and minimum bootstrap -------------------
 
   asv_set <- asv_set %>%
     filter({{taxo_level}} %in% taxo_name) %>%
@@ -205,23 +250,34 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     filter({{taxo_level}} %in% taxo_name) %>%
     filter({{boot_level}} >= boot_min)
 
-  # Export fasta file
+  # File names -------------------
+  generate_file_name <- function (type, ext = "xlsx") str_c(directory, type, dataset_id_char ,
+                                                   "_", taxo_name_label ,"_",Sys.Date(),".", ext)
+
+
+  file_asv_fasta <- generate_file_name("metapr2_asv_set_",  "fasta")
+  file_asv_xlsx <-  generate_file_name("metapr2_asv_set_")
+  file_wide <- generate_file_name("metapr2_wide_asv_set_")
+  file_long <- generate_file_name("metapr2_long_asv_set_")
+  file_samples <- generate_file_name("metapr2_samples_asv_set_")
+  file_phyloseq <- generate_file_name("metapr2_phyloseq_asv_set_", "rds")
+
+
+  # Export fasta file ------------
 
   if (taxonomy_full) {
     asv_fasta <- asv_fasta %>%
-      dplyr::rename(seq_name = asv_code)
-    if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
-                                  compress = FALSE, taxo_include = TRUE)
+      dplyr::mutate(seq_name = asv_code)
   } else {
     asv_fasta <- asv_fasta %>%
       mutate(seq_name = str_c(asv_code, species, sep="|") )
-    if (export_fasta) fasta_write(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".fasta"),
-                                  compress = FALSE, taxo_include = FALSE)
   }
 
   # Export asv file
-  if (export_fasta) export(asv_fasta, str_c(directory, "metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".xlsx"))
-
+  if (export_fasta){
+    fasta_write(asv_fasta,file_asv_fasta, compress = FALSE, taxo_include = TRUE)
+    rio::export(asv_fasta, file_asv_xlsx, overwrite = TRUE)
+  }
 
 
   # Export wide Excel file
@@ -242,15 +298,14 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                   values_fill=list(n_reads=0),
                   values_fn = mean)
 
-    openxlsx::write.xlsx(asv_set_wide, str_c(directory, "metapr2_wide_asv_set_", dataset_id_char ,"_", taxo_name_label, ".xlsx"))
+    rio::export(asv_set_wide, file_wide, overwrite = TRUE)
   }
 
   # Export long excel file
 
-  if (export_long_xls)   openxlsx::write.xlsx(asv_set, str_c(directory, "metapr2_long_asv_set_",
-                                                             dataset_id_char ,"_", taxo_name_label, ".xlsx"))
+  if (export_long_xls)   rio::export(asv_set, file_long, overwrite = TRUE)
 
-  if (export_sample_xls) openxlsx::write.xlsx(sample_list, str_c(directory, "metapr2_samples_asv_set_", dataset_id_char , ".xlsx"))
+  if (export_sample_xls) rio::export(sample_list, file_samples, overwrite = TRUE)
 
   # Export Phyloseq file
 
@@ -259,7 +314,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
     # 1. samples table : row names are labelled by file_code
     samples_df <- asv_set %>%
-      select(file_code:last_col(), -n_reads) %>%
+      select(dataset_id, file_code:last_col(), -n_reads) %>%
       distinct(file_code, .keep_all = TRUE) %>%
       column_to_rownames(var = "file_code")
 
@@ -293,7 +348,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
     phyloseq_asv <- phyloseq::phyloseq(OTU, TAX, samples)
 
-    saveRDS(phyloseq_asv, file = str_c(directory, "phyloseq_metapr2_asv_set_", dataset_id_char ,"_", taxo_name_label, ".rds") )
+    saveRDS(phyloseq_asv, file = file_phyloseq )
 
   }
 
@@ -375,10 +430,11 @@ metapr2_export_metadata <- function() {
 #' @md
 #'
 metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
-                               dataset_id_selected = c(1:100)) {
+                               dataset_id_selected = c(1:500)) {
 
 # Define a variable to hold the data set id as character
-  dataset_id_char <- case_when ((100 %in% dataset_id_selected) ~ "all",
+  dataset_id_char <- case_when ((500 %in% dataset_id_selected) ~ "all",
+                                length(dataset_id_selected) > 5 ~ "several",
                                 TRUE ~ str_c(dataset_id_selected, collapse = "_"))
 
 
@@ -416,9 +472,297 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
     summarise(reads_total = sum(n_reads))
 
 
-    openxlsx::write.xlsx(asv_set_total, str_c(directory, "metapr2_reads_total_", dataset_id_char, ".xlsx"))
+    export(asv_set_total, str_c(directory, "metapr2_reads_total_", dataset_id_char,"_", Sys.Date() , ".xlsx"))
 
     return(asv_set_total)
 
   }
+
+# metapr2_export_qs -------------------------------------------------------
+#' @title Exports the metapr2 database in qs file for shiny app
+#' @description
+#' Exports a range of file and format.
+#'    * fasta file with the full taxonomy or just the genus level
+#'    * excel file with the full table of the asv and metadata
+#'    * phyloseq file (better when only selecting a single data set)
+#'    * list of samples with metadata
+#'
+#' Returns a list with 4 elements
+#'    * df = dataframe with all the asv and the stations and read numbers
+#'    * ps = phyloseq object  - if phyloseq = TRUE
+#'    * fasta = df with 2 columns seq_name and sequence
+#'    * samples= sample_list (list of sammples with metadata)
+#'
+#' NOTE: if all export_long_xls, export_wide_xls, export_phyloseq are false, abundances are not exported
+#' @param set_type   "public" (41 sets), "basic" (5 sets only), "all"
+#' @param directory  Directory where the files are saved (finish with /)
+#'
+#' @return
+#' TRUE if successful
+#' @examples
+#' # Export public data set
+#'
+#'   metapr2_export_qs("public")
+#'
+#' @export
+#' @md
+#'
+metapr2_export_qs <- function(set_type = "public",
+                              directory = "data/") {
+
+# Constants  ----------------------------------
+
+
+  # List to store all global variables
+  global <- list()
+
+  global$taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species", "asv_code")
+
+
+  # All samples are normalized to 100 with 3 decimals, so that it corresponds to a percent
+  global$n_reads_tot_normalized = 100
+
+  # Column to removes as well as contains("_boot")
+
+  cols_to_remove = c("asv_id" , "chimera", "sequence_hash", "asv_remark",
+                     "sample_id", "file_name", "metadata_id",
+                     "NCBI", "NCBI_run", "sample_name",
+                     "sample_concentration","sample_sorting", "sample_sorting_cells",
+                     "metadata_code", "replicate",
+                     "fraction_name_original", "fraction_min", "fraction_max",
+                     "sample_remark", "metadata_code_original",
+                     "station_id_num", "year", "time", "O2", "fluorescence",
+                     "season", "day_length", "depth_range",
+                     "substrate_description", "substrate_description_detailed",
+                     "experiment_time" ,
+                     "pH" , "ice_type" , "ice_thickness" ,
+                     "Secchi_depth",
+                     "Chla_0.2_3 um" , "PAR_pct" ,
+                     "bact_ml" , "peuk_ml" , "neuk_ml", "crypto_ml",
+                     "NO2", "metadata_remark",
+                     "dataset_path",
+                     "lat_min","lat_max","long_min","long_max",
+                     "primers_removed ", "dada2_truncLen","dada2_minLen",
+                     "dada2_maxLen","dada2_bigdata","dada2_truncQ",
+                     "dada2_maxEE","dada2_max_number_asvs")
+
+
+
+  # Data sets selected ----------------------------------
+
+
+  # For class
+
+  if (set_type == "basic"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(dataset_id %in% c(1, 34, 35, 205, 206))
+    global$phyloseq_use = TRUE
+    sub_dir = "sets_basic"
+  }
+
+  # 41 sets
+  if (set_type == "public"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(!is.na(metapr2_version))
+    global$phyloseq_use = TRUE
+    sub_dir = "sets_public"
+  }
+
+  # 58 sets
+  if (set_type == "all"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(!is.na(processing_date),
+             gene == "18S rRNA")
+    global$phyloseq_use = FALSE
+    sub_dir = "sets_all"
+  }
+
+  #
+  # # All datasets
+  # datasets_selected <- metapr2_export_datasets()
+
+  # Read metaPR2 datasets ----------------------------------
+
+
+  asv_set <- metapr2_export_asv(
+    taxo_level = kingdom,
+    taxo_name = "Eukaryota",
+    dataset_id_selected = datasets_selected$dataset_id,
+    filter_samples = "fraction_name != 'femto' &
+                   !is.na(file_code)  &
+                   file_code !='' &
+                   !is.na(DNA_RNA)",
+    filter_metadata =  "is.na(experiment_name)",
+    export_fasta = FALSE,
+    export_wide_xls = FALSE,
+    export_sample_xls = FALSE,
+    export_phyloseq = global$phyloseq_use,
+    directory = directory,
+    taxonomy_full = TRUE,
+    boot_min = 90,
+    boot_level = supergroup_boot,
+    use_hash = TRUE,
+    sum_reads_min = 100
+  )
+
+  # Summarize information for each data set ----------------------------------
+
+  dataset_samples <- asv_set$df %>%
+    select(dataset_id, file_code) %>%
+    distinct() %>%
+    group_by(dataset_id) %>%
+    count(name = "sample_number") %>%
+    ungroup()
+
+  dataset_asv <- asv_set$df %>%
+    select(dataset_id, asv_code) %>%
+    distinct() %>%
+    group_by(dataset_id) %>%
+    count(name = "asv_number") %>%
+    ungroup()
+
+  dataset_reads <- asv_set$df %>%
+    select(dataset_id, file_code, n_reads) %>%
+    group_by(dataset_id, file_code) %>%
+    summarize(n_reads = sum(n_reads)) %>%
+    ungroup() %>%
+    group_by(dataset_id) %>%
+    summarize(n_reads_mean = round(mean(n_reads),0)) %>%
+    ungroup()
+
+
+  # Normalize total mumber of sample reads to 100 ------------------------------
+  # Only use the first 10 characters for asv_code (non ambiguous)
+
+  asv_set$df <- asv_set$df %>%
+    mutate(asv_code = str_sub(asv_code, 1,10) ) %>%
+    select(file_code, asv_code, n_reads) %>%
+    group_by(file_code) %>%
+    mutate(n_reads_pct = round(n_reads/sum(n_reads)*global$n_reads_tot_normalized, 3)) %>%
+    ungroup()
+
+  # Do not transform the phyloseq data for Alpha and Beta diversity analyses
+  # asv_set$ps  = phyloseq::transform_sample_counts(asv_set$ps,
+  #                                                 function(x) round( x / sum(x)*global$n_reads_tot_normalized,3 ))
+  if (global$phyloseq_use) {
+    sample_data(asv_set$ps)$dataset_id <- as.factor(sample_data(asv_set$ps)$dataset_id)
+    ps <- asv_set$ps
+    asv_set$ps <- NULL
+  }
+
+  asv_set$samples <- asv_set$samples %>%
+    select(-any_of(cols_to_remove),
+           -(processing_pipeline_original:contact_email)
+    ) %>%
+    mutate(label = str_c(dataset_code,
+                         str_replace_na(station_id, ""),
+                         str_replace_na(depth_level, ""),
+                         str_replace_na(substrate, ""),
+                         sep = "-")) %>%
+    left_join(select(datasets_selected, dataset_id, ecosystem))
+
+  asv_set$datasets <- datasets_selected %>%
+    select(-any_of(cols_to_remove)) %>%
+    left_join(dataset_samples) %>%
+    left_join(dataset_asv) %>%
+    left_join(dataset_reads)
+
+
+  asv_set$fasta <- asv_set$fasta %>%
+    select(- seq_name, -any_of(cols_to_remove), -contains("_boot")) %>%
+    mutate(asv_code = str_sub(asv_code, 1,10) )
+
+
+
+
+  # The next line is only necessary for exporting as independant phyloseq file
+  # asv_set_phyloseq <- asv_set$ps
+
+  # Compute derived data -----------------------------------------------------------
+
+  # Metadata groups
+
+  global$gene_regions <- sort(unique(asv_set$samples$gene_region))
+  global$DNA_RNAs <-  sort(unique(asv_set$samples$DNA_RNA))
+  global$projects <-  sort(unique(asv_set$samples$project))
+
+  # Reordering the variables ------------------------------------------------
+
+
+  depth_level_ordered <- c("under ice", "surface", "euphotic",
+                           "bathypelagic", "mesopelagic", "land",
+                           "composite" ,"bottom" )
+  fraction_name_ordered <- c("pico", "pico-nano", "nano",
+                             "nano-micro", "micro",
+                             "meso" ,"total" )
+  substrate_ordered <- c("water", "net", "ice", "sediment trap material", "sediment trap blank",
+                         "epibiota", "sediment", "soil" )
+
+  ecosystems_ordered <- c( "oceanic", "coastal","estuarine","freshwater lakes","freshwater rivers","terrestrial")
+
+  asv_set$samples <- asv_set$samples %>%
+    mutate(substrate = stringr::str_replace(substrate, "first year ice", "ice"),
+           depth_level = forcats::fct_relevel(depth_level, levels = depth_level_ordered),
+           fraction_name = forcats::fct_relevel(fraction_name, levels = fraction_name_ordered),
+           substrate = forcats::fct_relevel(substrate, levels = substrate_ordered),
+           ecosystem = forcats::fct_relevel(ecosystem, levels = ecosystems_ordered)
+    )
+
+
+  # Reorder for the check boxes ---------------------------------------------
+
+
+  update_order <- function(variable) {
+    values <- dplyr::arrange(asv_set$samples, .data[[variable]])
+    values <- dplyr::pull(values, .data[[variable]])
+    unique(values)
+  }
+
+  global$depth_levels <- update_order("depth_level")
+  global$fraction_names <- update_order("fraction_name")
+  global$substrates <- update_order("substrate")
+  global$ecosystems <- update_order("ecosystem")
+
+
+  # Taxonomy structure --------------------------------------------------------
+
+  global$pr2_taxo <- asv_set$fasta %>%
+    select(any_of(global$taxo_levels)) %>%
+    distinct() %>%
+    arrange(across(any_of(global$taxo_levels)))
+
+  # Colors ------------------------------------------------------------------
+
+  pr2_colors <- dvutils::pr2_colors_read()
+
+  supergroup_colors <- pr2_colors %>%
+    filter(palette_name=="daniel",
+           taxo_level == "supergroup")
+
+  global$supergroup_colors <- structure(supergroup_colors$color_hex,
+                                        .Names=supergroup_colors$taxo_name)
+
+  # Move to data directory --------------------------------------------------------
+
+  sub_dir = str_c("sets_", set_type)
+
+  qs::qsave(asv_set, str_c(directory, "asv_set.qs"))
+  qs::qsave(global, str_c(directory,"global.qs"))
+  qs::qsave(ps, str_c(directory,"ps.qs"))
+
+  # Object sizes ------------------------------------------------------------
+
+  obj_size <- function(x) {
+    cat("Object:",deparse(substitute(x)), "- size: ", round(pryr::object_size(x)/10**6, 2), " Mb \n")
+  }
+
+  obj_size(asv_set)
+  obj_size(asv_set$df)
+  obj_size(asv_set$samples)
+  obj_size(asv_set$fasta)
+
+  if (global$phyloseq_use) obj_size(asv_set$ps)
+
+  obj_size(global)
+}
 

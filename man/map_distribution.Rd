@@ -11,6 +11,7 @@ map_distribution(
   z_min = 1,
   color_not_present = "blue",
   size_not_present = 1,
+  size_present = 8,
   base_size = 14,
   map_title = "",
   map_tag = "",
@@ -28,6 +29,10 @@ map_distribution(
 \item{z_min}{Lower limit below which the location is represented by a cross}
 
 \item{color_not_present}{Color used to display points where the z is below z_min}
+
+\item{size_not_present}{Size used to display points where the z is below z_min}
+
+\item{size_present}{Maximum size used to display points where the z is above z_min}
 
 \item{base_size}{Font size for the theme (can increase to make axes legends and titles bigger)}
 
