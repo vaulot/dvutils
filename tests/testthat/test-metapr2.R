@@ -20,8 +20,8 @@ test_that("metapr2 asv export ", {
 
   # metapr2_export_asv (taxo_level = kingdom, taxo_name="Eukaryota",
   #                      boot_level = class_boot, boot_min = 0,
-  #                      directory = "output/metapr2/47/",
-  #                      dataset_id_selected = 47,
+  #                      directory = "output/metapr2/6/",
+  #                      dataset_id_selected = 6,
   #                      filter_metadata = NULL,
   #                      export_long_xls=FALSE,
   #                      export_wide_xls=TRUE,
@@ -29,7 +29,7 @@ test_that("metapr2 asv export ", {
   #                      export_phyloseq = FALSE,
   #                      export_fasta=TRUE,
   #                      taxonomy_full = TRUE,
-  #                      use_hash = FALSE,
+  #                      use_hash = TRUE,
   #                      sum_reads_min = 0)
 
   # Export with filter for water only samples

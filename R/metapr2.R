@@ -165,6 +165,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
       group_by(sequence_hash) %>%
       dplyr::slice(1) %>%
       mutate(asv_code = sequence_hash) %>%
+      select(-dataset_id) %>%
       ungroup()
   } else {
     asv_fasta <- asv_set
