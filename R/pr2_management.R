@@ -147,6 +147,36 @@ pr2_taxo_read <- function() {
 
 }
 
+# pr2_traits_read -------------------------------------------------------
+#' @title Reads the PR2 traits database into a data frame
+#' @description
+#' The database access codes is obtained with the function db_info("pr2_google").
+#'
+#' **Important**: This gets the current taxonomic  database and does not include taxa that have been removed.
+#' @return
+#' A data frame
+#' @examples
+#' pr2_traits <- pr2_traits_read()
+#' @export
+#' @md
+#'
+pr2_traits_read <- function() {
+
+  print("Using pr2_google")
+
+
+  # Read the PR2 full table including removed records
+  pr2_db_con <- db_connect(db_info("pr2_google"))
+
+  pr2_traits <- tbl(pr2_db_con, "pr2_traits") %>%
+    collect()
+
+  db_disconnect(pr2_db_con)
+
+  return(pr2_traits)
+
+}
+
 # pr2_colors_read -------------------------------------------------------
 #' @title Reads the PR2 color into a data frame
 #' @description
