@@ -198,16 +198,17 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
       mutate(asv_code = sequence_hash)
   }
 
-  # Compute abundance of ASVs
+  # Compute abundance of ASVs --------------------------------------
 
   asv_set_number <- asv_set %>%
     count(asv_code, wt=n_reads, sort = TRUE, name = "sum_reads_asv") %>%
     filter(sum_reads_asv >= sum_reads_min)
 
-  # Remove the low abundance ASVs -------------------
+  # Remove the low abundance ASVs ---------------------------------
 
   asv_set <- asv_set %>%
     filter(asv_code %in% asv_set_number$asv_code)
+
   asv_fasta <- asv_fasta %>%
     filter(asv_code %in% asv_set_number$asv_code) %>%
     left_join(asv_set_number) %>%
@@ -312,7 +313,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   if (export_phyloseq) {
     ## Create the samples, otu and taxonomy tables
 
-    # 1. samples table : row names are labelled by file_code
+    # 1. samples table : row names are labeled by file_code
     samples_df <- asv_set %>%
       select(dataset_id, file_code:last_col(), -n_reads) %>%
       distinct(file_code, .keep_all = TRUE) %>%
@@ -463,8 +464,8 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
 
 
   asv_set <-  asv_set %>%
-   left_join(metapr2_asv_abundance) %>%
-   left_join(metapr2_samples)
+   inner_join(metapr2_asv_abundance) %>%
+   inner_join(metapr2_samples)
 
   asv_set_total <- asv_set %>%
     filter(!is.na(file_code)) %>%  # Remove empty file codes
@@ -556,7 +557,6 @@ metapr2_export_qs <- function(set_type = "public",
   if (set_type == "basic"){
     datasets_selected <- metapr2_export_datasets() %>%
       filter(dataset_id %in% c(1, 34, 35, 205, 206))
-    global$phyloseq_use = TRUE
     sub_dir = "sets_basic"
   }
 
@@ -564,7 +564,6 @@ metapr2_export_qs <- function(set_type = "public",
   if (set_type == "public"){
     datasets_selected <- metapr2_export_datasets() %>%
       filter(!is.na(metapr2_version))
-    global$phyloseq_use = TRUE
     sub_dir = "sets_public"
   }
 
@@ -573,9 +572,10 @@ metapr2_export_qs <- function(set_type = "public",
     datasets_selected <- metapr2_export_datasets() %>%
       filter(!is.na(processing_date),
              gene == "18S rRNA")
-    global$phyloseq_use = FALSE
     sub_dir = "sets_all"
   }
+
+  cat("Datasets: ", nrow(datasets_selected))
 
   #
   # # All datasets
@@ -596,7 +596,7 @@ metapr2_export_qs <- function(set_type = "public",
     export_fasta = FALSE,
     export_wide_xls = FALSE,
     export_sample_xls = FALSE,
-    export_phyloseq = global$phyloseq_use,
+    export_phyloseq = FALSE,
     directory = directory,
     taxonomy_full = TRUE,
     boot_min = 90,
@@ -624,10 +624,10 @@ metapr2_export_qs <- function(set_type = "public",
   dataset_reads <- asv_set$df %>%
     select(dataset_id, file_code, n_reads) %>%
     group_by(dataset_id, file_code) %>%
-    summarize(n_reads = sum(n_reads)) %>%
+    summarize(n_reads = sum(n_reads, na.rm=TRUE)) %>%
     ungroup() %>%
     group_by(dataset_id) %>%
-    summarize(n_reads_mean = round(mean(n_reads),0)) %>%
+    summarize(n_reads_mean = round(mean(n_reads,  na.rm=TRUE),0)) %>%
     ungroup()
 
 
@@ -644,11 +644,6 @@ metapr2_export_qs <- function(set_type = "public",
   # Do not transform the phyloseq data for Alpha and Beta diversity analyses
   # asv_set$ps  = phyloseq::transform_sample_counts(asv_set$ps,
   #                                                 function(x) round( x / sum(x)*global$n_reads_tot_normalized,3 ))
-  if (global$phyloseq_use) {
-    sample_data(asv_set$ps)$dataset_id <- as.factor(sample_data(asv_set$ps)$dataset_id)
-    ps <- asv_set$ps
-    asv_set$ps <- NULL
-  }
 
   asv_set$samples <- asv_set$samples %>%
     select(-any_of(cols_to_remove),
@@ -658,8 +653,7 @@ metapr2_export_qs <- function(set_type = "public",
                          str_replace_na(station_id, ""),
                          str_replace_na(depth_level, ""),
                          str_replace_na(substrate, ""),
-                         sep = "-")) %>%
-    left_join(select(datasets_selected, dataset_id, ecosystem))
+                         sep = "-"))
 
   asv_set$datasets <- datasets_selected %>%
     select(-any_of(cols_to_remove)) %>%
@@ -667,6 +661,7 @@ metapr2_export_qs <- function(set_type = "public",
     left_join(dataset_asv) %>%
     left_join(dataset_reads)
 
+  cat("Datasets: ", nrow(asv_set$datasets))
 
   asv_set$fasta <- asv_set$fasta %>%
     select(- seq_name, -any_of(cols_to_remove), -contains("_boot")) %>%
@@ -714,8 +709,9 @@ metapr2_export_qs <- function(set_type = "public",
 
   update_order <- function(variable) {
     values <- dplyr::arrange(asv_set$samples, .data[[variable]])
-    values <- dplyr::pull(values, .data[[variable]])
-    unique(values)
+    values <- dplyr::pull(values, .data[[variable]]) %>%
+    unique() %>%
+    as.character()
   }
 
   global$depth_levels <- update_order("depth_level")
@@ -742,13 +738,14 @@ metapr2_export_qs <- function(set_type = "public",
   global$supergroup_colors <- structure(supergroup_colors$color_hex,
                                         .Names=supergroup_colors$taxo_name)
 
-  # Move to data directory --------------------------------------------------------
 
-  sub_dir = str_c("sets_", set_type)
+  # Authentification (move to data_initialize) ------------------------
+
+
+  # Save data using qs --------------------------------------------------------
 
   qs::qsave(asv_set, str_c(directory, "asv_set.qs"))
   qs::qsave(global, str_c(directory,"global.qs"))
-  qs::qsave(ps, str_c(directory,"ps.qs"))
 
   # Object sizes ------------------------------------------------------------
 
@@ -760,8 +757,6 @@ metapr2_export_qs <- function(set_type = "public",
   obj_size(asv_set$df)
   obj_size(asv_set$samples)
   obj_size(asv_set$fasta)
-
-  if (global$phyloseq_use) obj_size(asv_set$ps)
 
   obj_size(global)
 }
