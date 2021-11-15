@@ -122,7 +122,7 @@ pr2_read <- function(taxo_levels_number = 8) {
 #'
 #' **Important**: This gets the current taxonomic  database and does not include taxa that have been removed.
 #' @return
-#' A data frame with all the columns from pr2_taxo.
+#' A data frame
 #' @examples
 #' pr2_taxo <- pr2_taxo_read()
 #' @export
