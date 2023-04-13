@@ -33,3 +33,28 @@ lat_long_dec <- function(degree, minute, orientation, coordinate_type) {
         else {return(NA)}
       }
 }
+
+# Latitude, Longitude conversion ------------------------------------------
+
+#' Convert lat and long to decimal
+#'
+#' @param x character of the form 34° 52' 49"S	or 173° 17' 53"E
+#' Must use purrr::map_dbl for mutate
+#'
+#' @return
+#' Decimal coordinates or NA if no coordinate
+#' @export
+#'
+#' @examples
+#' lat_dec <- lat_long_string_dec("34° 52' 49\"S")
+
+lat_long_string_dec <- function(x) {
+
+  if(is.na(x)) return(NA)
+
+  # Remove any space
+  x <- stringr::str_replace_all(x," ", "")
+
+  # Convert using sp function
+  as.numeric(sp::char2dms(from = x,  chd="°", chm="'", chs = "\""))
+}

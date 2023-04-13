@@ -4,7 +4,7 @@
 \alias{pr2_taxo_X}
 \title{Add _X for taxon that are repeated on same line}
 \usage{
-pr2_taxo_X(pr2_taxo, taxo_levels = pr2.env$taxo_levels[[8]])
+pr2_taxo_X(pr2_taxo, taxo_levels_number = 9)
 }
 \arguments{
 \item{pr2_taxo}{Data frame containing columns from kingdom to species (or else see the next parameter).  It is not necessary that the columns be ordered.}
@@ -18,5 +18,5 @@ A corrected data frame
 If more than 2 ranks on a given line have the same name or is empty, rename with Mytaxon_X, Mytaxon_XX etc.. up to the species name which becomes Mytaxon_XX_sp.
 }
 \examples{
-pr2_taxo_clean <- pr2_taxo_X(pr2_taxo, pr2.env$taxo_levels)
+pr2_taxo_clean <- pr2_taxo_X(pr2_taxo, 9)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/pr2_management.R
 \name{pr2_traits_read}
 \alias{pr2_traits_read}
-\title{Reads the PR2 traits database into a data frame}
+\title{Reads the PR2 traits table into a data frame}
 \usage{
 pr2_traits_read()
 }

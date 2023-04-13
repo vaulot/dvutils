@@ -4,10 +4,16 @@
 \alias{metapr2_export_qs}
 \title{Exports the metapr2 database in qs file for shiny app}
 \usage{
-metapr2_export_qs(set_type = "public", directory = "data/")
+metapr2_export_qs(
+  set_type = "public 2.0",
+  do_cluster = FALSE,
+  directory = "data/"
+)
 }
 \arguments{
 \item{set_type}{"public" (41 sets), "basic" (5 sets only), "all"}
+
+\item{do_cluster}{Should the ASVs be clustered ?}
 
 \item{directory}{Directory where the files are saved (finish with /)}
 }

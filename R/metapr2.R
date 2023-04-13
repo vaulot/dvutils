@@ -38,6 +38,7 @@
 #' @param taxonomy_full If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species
 #' @param use_hash If TRUE, the asvs with identical has will be merged and called by their hash value (sequence_hash)
 #' @param sum_reads_min This is the minimum number of reads (summed over the datasets selected) for an asv to be included
+#' @param sample_reads_min This is the minimum number of reads for a sample to be included
 #' @return
 #' A list with 4 elements
 #' @examples
@@ -70,7 +71,8 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                                export_fasta=FALSE,
                                taxonomy_full = TRUE,
                                use_hash = FALSE,
-                               sum_reads_min = 0) {
+                               sum_reads_min = 0,
+                               sample_reads_min = 1000) {
 
   taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species")
   taxo_levels_boot <- str_c(taxo_levels, "_boot")
@@ -86,14 +88,19 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   metapr2_db_con <- db_connect(metapr2_db)
 
   # Get all the asv (filtration is now done latter)
+
   asv_set <- tbl(metapr2_db_con, "metapr2_asv") %>%
     filter(dataset_id %in% dataset_id_selected) %>%
     filter(is.na(chimera)) %>%
     collect()
 
-  # Use the new assignements
+  # Use the new assignements ---------------------------------------------------
+
+  # Assign default values if errors
   if(!(assigned_with %in% c("dada2", "decipher"))) {assigned_with = "dada2"}
   if(!(reference_database %in% c("pr2_4.12.0", "pr2_4.14.0"))) {reference_database = "pr2_4.14.0"}
+
+  # Read the assignements
 
   if(reference_database == "pr2_4.14.0") {
     if (assigned_with == "dada2") {
@@ -106,12 +113,15 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
     if(reference_database == "pr2_4.12.0") {
         asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.12.0")
-      }
+    }
+
+    # Merge the assignments
 
     asv_set <- asv_set %>%
       select(-any_of(c(taxo_levels, taxo_levels_boot))) %>%
       left_join(asv_set_updated, by = c("sequence_hash" = "sequence_hash"))
   }
+
 
   # Create a label for the taxons selected to be used for the files -------------------
   if(length(taxo_name) > 1){
@@ -119,6 +129,8 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   } else {
     taxo_name_label <- taxo_name
   }
+
+  cat("asv_set done\n")
 
   # Filter the asv based on the datasets selected and the minimum bootstrap -------------------
   # asv_set <- asv_set %>%
@@ -130,19 +142,39 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   # `df[[y]]` implied that `df` was a local variable, but now you must make that explict with `!!` or `local()`, e.g., `!!df$x` or
   # `local(df[["y"]))
 
+
+  # ASV abundance ---
+
   metapr2_asv_abundance <- tbl(metapr2_db_con, "metapr2_asv_abundance") %>%
     filter(asv_code %in% !!asv_set$asv_code) %>%
     collect()
+
+  cat("asv_abundance done\n")
+
+  # Samples ---
 
   metapr2_samples <- tbl(metapr2_db_con, "metapr2_samples") %>%
     filter(!is.na(file_code)) %>%   # Remove all samples that have not been processed
     collect()
 
-  # Filter samples
+  # Filter samples using the custom filter
   if (!is.null(filter_samples)) {
     metapr2_samples <- metapr2_samples %>%
       filter(eval(rlang::parse_expr(filter_samples)))
   }
+
+  # Filter samples that do not have enough reads
+  file_codes_enough_reads <-  metapr2_asv_abundance %>%
+    count(file_code, wt = n_reads) %>%
+    filter(n >= sample_reads_min) %>%
+    pull(file_code)
+
+  metapr2_samples <- metapr2_samples %>%
+    filter(file_code %in% file_codes_enough_reads)
+
+  cat("samples done\n")
+
+  # Metadata ---
 
   metapr2_metadata <- tbl(metapr2_db_con, "metapr2_metadata") %>%
     collect()
@@ -498,6 +530,7 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
 #' NOTE: if all export_long_xls, export_wide_xls, export_phyloseq are false, abundances are not exported
 #' @param set_type   "public" (41 sets), "basic" (5 sets only), "all"
 #' @param directory  Directory where the files are saved (finish with /)
+#' @param do_cluster Should the ASVs be clustered ?
 #'
 #' @return
 #' TRUE if successful
@@ -509,7 +542,8 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
 #' @export
 #' @md
 #'
-metapr2_export_qs <- function(set_type = "public",
+metapr2_export_qs <- function(set_type = "public 2.0",
+                              do_cluster = FALSE,
                               directory = "data/") {
 
 # Constants  ----------------------------------
@@ -519,7 +553,7 @@ metapr2_export_qs <- function(set_type = "public",
   global <- list()
 
   global$taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species", "asv_code")
-
+  global$traits <- c("ecological_function", "trophic_group")
 
   # All samples are normalized to 100 with 3 decimals, so that it corresponds to a percent
   global$n_reads_tot_normalized = 100
@@ -528,7 +562,7 @@ metapr2_export_qs <- function(set_type = "public",
 
   cols_to_remove = c("asv_id" , "chimera", "sequence_hash", "asv_remark",
                      "sample_id", "file_name", "metadata_id",
-                     "NCBI", "NCBI_run", "sample_name",
+                     "NCBI", "sample_name",
                      "sample_concentration","sample_sorting", "sample_sorting_cells",
                      "metadata_code", "replicate",
                      "fraction_name_original", "fraction_min", "fraction_max",
@@ -542,12 +576,11 @@ metapr2_export_qs <- function(set_type = "public",
                      "Chla_0.2_3 um" , "PAR_pct" ,
                      "bact_ml" , "peuk_ml" , "neuk_ml", "crypto_ml",
                      "NO2", "metadata_remark",
-                     "dataset_path",
+                     "dataset_path", "sample_number",
                      "lat_min","lat_max","long_min","long_max",
                      "primers_removed ", "dada2_truncLen","dada2_minLen",
                      "dada2_maxLen","dada2_bigdata","dada2_truncQ",
                      "dada2_maxEE","dada2_max_number_asvs")
-
 
 
   # Data sets selected ----------------------------------
@@ -558,23 +591,53 @@ metapr2_export_qs <- function(set_type = "public",
   if (set_type == "basic"){
     datasets_selected <- metapr2_export_datasets() %>%
       filter(dataset_id %in% c(1, 34, 35, 205, 206))
-    sub_dir = "sets_basic"
+    do_cluster <- false
+    # sub_dir = "sets_basic"
   }
 
   # 41 sets
-  if (set_type == "public"){
+  if (set_type == "public 1.0"){
     datasets_selected <- metapr2_export_datasets() %>%
-      filter(!is.na(metapr2_version))
-    sub_dir = "sets_public"
+      filter(metapr2_version == "1.0")
+    cluster_version = "1.0"
+    # sub_dir = "sets_public"
   }
 
-  # 58 sets
+  # 59 sets
+  if (set_type == "public 2.0"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(metapr2_version %in% c("1.0", "2.0"))
+    cluster_version = "2.0"
+    # sub_dir = "sets_public"
+  }
+
+  # 41 sets + green edge
+  if (set_type == "green-edge"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(metapr2_version == "1.0" | dataset_id %in% 21:23)
+    cluster_version = "1.0+GE"
+    # sub_dir = "sets_public"
+  }
+
+  # 59 sets + green edge
+  if (set_type == "green-edge2"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(metapr2_version %in% c("1.0", "2.0") | dataset_id %in% 21:23)
+    cluster_version = "2.0+GE"
+    # sub_dir = "sets_public"
+  }
+
+  # 73 sets
   if (set_type == "all"){
     datasets_selected <- metapr2_export_datasets() %>%
-      filter(!is.na(processing_date),
+      filter(processing_pipeline_metapr2 == "dada2",
              gene == "18S rRNA")
-    sub_dir = "sets_all"
+    cluster_version = "All 2022-10-25"
+    # sub_dir = "sets_all"
   }
+
+
+
 
   cat("Datasets: ", nrow(datasets_selected))
 
@@ -600,11 +663,107 @@ metapr2_export_qs <- function(set_type = "public",
     export_phyloseq = FALSE,
     directory = directory,
     taxonomy_full = TRUE,
-    boot_min = 90,
+    boot_min = 75,
     boot_level = supergroup_boot,
     use_hash = TRUE,
-    sum_reads_min = 100
+    sum_reads_min = 100,
+    sample_reads_min = 1000
   )
+
+  # Shorten asv_code -------------------
+
+  asv_set$df <- asv_set$df %>%
+    mutate(asv_code = str_sub(asv_code, 1,10) )
+
+  asv_set$fasta <- asv_set$fasta %>%
+    mutate(asv_code = str_sub(asv_code, 1,10))
+
+
+  # Cluster -------------------
+
+  if (do_cluster) {
+    metapr2_db <- dvutils::db_info("metapr2_google")
+    metapr2_db_con <- dvutils::db_connect(metapr2_db)
+
+    clusters <- tbl(metapr2_db_con, "metapr2_asv_clusters") %>%
+      collect()
+
+    dvutils::db_disconnect(metapr2_db_con)
+
+    clusters <- clusters %>%
+      filter(record_type == "H",
+             pct_sim == 100,
+             metapr2_version == cluster_version) %>%
+      rename(asv_code = hash_value,
+             asv_code_centroid = hash_value_centroid) %>%
+      mutate(asv_code = str_sub(asv_code,1,10),
+             asv_code_centroid = str_sub(asv_code_centroid,1,10)) %>%
+      select(-record_type, -pct_sim, -metapr2_version)
+
+    # Check whether any duplicate ASVs
+    clusters_duplicated <- clusters %>%
+      count(asv_code) %>%
+      filter(n> 1)
+
+    cat("Duplicate ASVs in cluster:", nrow(clusters_duplicated), "\n")
+
+    # In the fasta table, remove all ASVs that have a centroid
+    # Need also to summarize the number of reads per cluster
+
+    asv_set$fasta_cluster <- asv_set$fasta %>%
+      left_join(clusters) %>%
+      mutate(asv_code = case_when(!is.na(asv_code_centroid )~ asv_code_centroid,
+                                  TRUE ~ asv_code))
+
+    fasta_cluster_sum_reads_asv <- asv_set$fasta_cluster %>%
+      group_by(asv_code) %>%
+      summarize(sum_reads_asv = sum(sum_reads_asv)) %>%
+      ungroup()
+
+    asv_set$fasta_cluster <- asv_set$fasta_cluster %>%
+      select(-sum_reads_asv) %>%
+      left_join(fasta_cluster_sum_reads_asv) %>%
+      filter(is.na(asv_code_centroid)) %>%
+      select(-asv_code_centroid)
+
+    cat("Are the 2 sums identical (df_fasta): ",
+        sum(asv_set$df_fasta$sum_reads_asv) == sum(asv_set$df_df$sum_reads_asv),
+        "\n")
+
+    # In the df table, rename ASVs that have a centroid with the code of the centroid
+
+    asv_set$df_cluster <- asv_set$df %>%
+      left_join(clusters) %>%
+      mutate(asv_code = case_when(!is.na(asv_code_centroid )~ asv_code_centroid,
+                                  TRUE ~ asv_code))  %>%
+      select(-asv_code_centroid) %>%
+      group_by(dataset_id, file_code, asv_code) %>%
+      summarize(n_reads = sum(n_reads)) %>%
+      ungroup()
+
+    # Check that no centroid left in cluster
+
+
+    cat("Are the 2 sums identical (df_cluster): ",
+        sum(asv_set$df_cluster$n_reads),
+        "Are the 2 sums identical (df): ",
+        sum(asv_set$df$n_reads), "\n")
+
+    cat(glue::glue("Number of ASVs before clustering (df): {length(unique(asv_set$df$asv_code))}"), "\n")
+    cat(glue::glue("Number of ASVs after clustering (df): {length(unique(asv_set$df_cluster$asv_code))}"), "\n")
+    cat(glue::glue("Number of ASVs before clustering (fasta): {length(unique(asv_set$fasta$asv_code))}"), "\n")
+    cat(glue::glue("Number of ASVs after clustering (fasta): {length(unique(asv_set$fasta_cluster$asv_code))}"), "\n")
+
+    # Finalize by replacing the df and fasta tables by the one with clusters
+
+    asv_set$df <- asv_set$df_cluster
+
+    asv_set$fasta <- asv_set$fasta_cluster
+
+    asv_set$df_cluster <- NULL
+    asv_set$fasta_cluster <- NULL
+  }
+
 
   # Summarize information for each data set ----------------------------------
 
@@ -636,7 +795,6 @@ metapr2_export_qs <- function(set_type = "public",
   # Only use the first 10 characters for asv_code (non ambiguous)
 
   asv_set$df <- asv_set$df %>%
-    mutate(asv_code = str_sub(asv_code, 1,10) ) %>%
     select(file_code, asv_code, n_reads) %>%
     group_by(file_code) %>%
     mutate(n_reads_pct = round(n_reads/sum(n_reads)*global$n_reads_tot_normalized, 3)) %>%
@@ -649,12 +807,7 @@ metapr2_export_qs <- function(set_type = "public",
   asv_set$samples <- asv_set$samples %>%
     select(-any_of(cols_to_remove),
            -(processing_pipeline_original:contact_email)
-    ) %>%
-    mutate(label = str_c(dataset_code,
-                         str_replace_na(station_id, ""),
-                         str_replace_na(depth_level, ""),
-                         str_replace_na(substrate, ""),
-                         sep = "-"))
+    )
 
   asv_set$datasets <- datasets_selected %>%
     select(-any_of(cols_to_remove)) %>%
@@ -664,9 +817,14 @@ metapr2_export_qs <- function(set_type = "public",
 
   cat("Datasets: ", nrow(asv_set$datasets))
 
+  pr2_traits <- dvutils::pr2_traits_merge()  %>%
+    select(any_of(c(global$taxo_levels, global$traits)))
+
   asv_set$fasta <- asv_set$fasta %>%
     select(- seq_name, -any_of(cols_to_remove), -contains("_boot")) %>%
-    mutate(asv_code = str_sub(asv_code, 1,10) )
+    left_join(pr2_traits)
+
+
 
 
 
@@ -686,15 +844,17 @@ metapr2_export_qs <- function(set_type = "public",
 
 
   depth_level_ordered <- c("under ice", "surface", "euphotic",
-                           "bathypelagic", "mesopelagic", "land",
-                           "composite" ,"bottom" )
+                           "mesopelagic", "bathypelagic",
+                           "composite" ,"bottom","land" )
   fraction_name_ordered <- c("pico", "pico-nano", "nano",
                              "nano-micro", "micro",
                              "meso" ,"total" )
-  substrate_ordered <- c("water", "net", "ice", "sediment trap material", "sediment trap blank",
-                         "epibiota", "sediment", "soil" )
+  substrate_ordered <- c("water", "ice", "sediment trap material", "sediment trap blank",
+                         "epibiota", "tissue", "coral tissue", "coral skeleton",
+                         "biofilm", "sediment", "sand","soil" )
 
-  ecosystems_ordered <- c( "oceanic", "coastal","estuarine","freshwater lakes","freshwater rivers","terrestrial")
+  ecosystems_ordered <- c( "oceanic", "coastal","estuarine","freshwater lakes",
+                           "freshwater rivers","terrestrial")
 
   asv_set$samples <- asv_set$samples %>%
     mutate(substrate = stringr::str_replace(substrate, "first year ice", "ice"),
@@ -724,11 +884,13 @@ metapr2_export_qs <- function(set_type = "public",
   # Taxonomy structure --------------------------------------------------------
 
   global$pr2_taxo <- asv_set$fasta %>%
-    select(any_of(global$taxo_levels)) %>%
+    select(any_of(c(global$taxo_levels, global$traits))) %>%
     distinct() %>%
     arrange(across(any_of(global$taxo_levels)))
 
   # Colors ------------------------------------------------------------------
+
+  # Supergroups ---
 
   pr2_colors <- dvutils::pr2_colors_read()
 
@@ -739,13 +901,35 @@ metapr2_export_qs <- function(set_type = "public",
   global$supergroup_colors <- structure(supergroup_colors$color_hex,
                                         .Names=supergroup_colors$taxo_name)
 
+  # Ecological function ---
+
+  ecological_function_colors <- pr2_colors %>%
+    filter(palette_name=="daniel",
+           taxo_level == "ecological_function")
+
+  global$ecological_function_colors <- structure(ecological_function_colors$color_name,
+                                           .Names=ecological_function_colors$taxo_name)
+
+  trophic_group_colors <- pr2_colors %>%
+    filter(palette_name=="daniel",
+           taxo_level == "trophic_group")
+
+  global$trophic_group_colors <- structure(trophic_group_colors$color_name,
+                                                 .Names=trophic_group_colors$taxo_name)
+
 
   # Authentification (move to data_initialize) ------------------------
 
 
   # Save data using qs --------------------------------------------------------
 
-  qs::qsave(asv_set, str_c(directory, "asv_set.qs"))
+  if (do_cluster){
+      qs::qsave(asv_set, str_c(directory, "asv_set_cluster.qs"))
+  }
+  else {
+      qs::qsave(asv_set, str_c(directory, "asv_set.qs"))
+  }
+
   qs::qsave(global, str_c(directory,"global.qs"))
 
   # Object sizes ------------------------------------------------------------

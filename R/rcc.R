@@ -63,7 +63,6 @@ rcc_genbank <- function(genbank_file)  {
 #'
 #' @examples
 #' df <- rcc_orders("orders.csv")
-#' @export
 
 rcc_orders <- function(orders_file)  {
     orders<-read.csv(orders_file, sep=";", quote='"', stringsAsFactors=FALSE)
@@ -95,7 +94,6 @@ rcc_orders <- function(orders_file)  {
 #'
 #' @examples
 #' df <- rcc_order_details("order_details.csv")
-#' @export
 
 rcc_order_details <- function(order_details_file)  {
     # read the file
@@ -132,7 +130,6 @@ rcc_order_details <- function(order_details_file)  {
 #'
 #' @examples
 #' df <- rcc_customers("customers.csv")
-#' @export
 
 rcc_customers <- function(customers_file)  {
   # read the file
@@ -162,7 +159,6 @@ rcc_customers <- function(customers_file)  {
 #' @examples
 #' rcc_export()
 #' @md
-#' @export
 
 rcc_export <- function(export_directory = "C:/Databases/web_export/") {
 

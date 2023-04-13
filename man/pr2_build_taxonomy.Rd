@@ -4,12 +4,12 @@
 \alias{pr2_build_taxonomy}
 \title{Buikd taxonomy table (wide format) from taxon table (long format)}
 \usage{
-pr2_build_taxonomy(pr2_taxons, pr2.env)
+pr2_build_taxonomy(pr2_taxons, taxo_levels = taxo_levels[[taxo_levels_number]])
 }
 \arguments{
 \item{pr2_taxons}{dataframe - should contain at least three columns taxon_id, taxon_name, taxon_level, parent_id}
 
-\item{pr2.env}{list containing taxo_levels}
+\item{taxo_levels}{Taxonomic levels}
 }
 \value{
 Data frame pr2_taxonomy with 9 columns
@@ -22,9 +22,9 @@ The input data frame does not need to be the whole pr2 taxons, can be taxo extra
 
 Programming note:
 This function uses the following trick for mutating the colums with the taxo_level string
-rank_name = \strong{sym}(pr2.env$taxo_levels\link{i})
+rank_name = \strong{sym}(taxo_levels\link{i})
 mutate (\strong{!!} rank_name \strong{:=} taxon_name)
 }
 \examples{
-pr2_taxo <- pr2_buil_taxonomy(pr2_taxons, pr2.env)
+pr2_taxo <- pr2_buil_taxonomy(pr2_taxons, 9)
 }

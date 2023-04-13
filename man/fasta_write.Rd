@@ -13,10 +13,12 @@ fasta_write(
 )
 }
 \arguments{
-\item{df}{The data frame with the otu names, the taxonomy and the sequences. It should have the following columns (with exactly these names)\preformatted{  * seq_name : the sequence name
+\item{df}{The data frame with the otu names, the taxonomy and the sequences. It should have the following columns (with exactly these names)
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{  * seq_name : the sequence name
   * supergroup: species
   * sequence
-}}
+}\if{html}{\out{</div>}}}
 
 \item{file_name}{Character, where to save the fasta file}
 

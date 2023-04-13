@@ -3,7 +3,7 @@
 context("metapr2")
 
 
-test_that("metapr2 asv export ", {
+# test_that("metapr2 asv export ", {
   # Export all the asv in a single fasta
   # metapr2_export_asv()
 
@@ -30,7 +30,9 @@ test_that("metapr2 asv export ", {
   #                      export_fasta=TRUE,
   #                      taxonomy_full = TRUE,
   #                      use_hash = TRUE,
-  #                      sum_reads_min = 0)
+  #                      sum_reads_min = 0,
+  #                      sample_reads_min = 35000
+  #                     )
 
   # Export with filter for water only samples
 
@@ -48,9 +50,13 @@ test_that("metapr2 asv export ", {
   #                     use_hash = FALSE,
   #                     sum_reads_min = 0)
 
-  # Export the basic dataset for shiny
+# })
 
-   metapr2_export_qs (set_type = "basic",
-                      directory = "output/metapr2/")
+test_that("metapr2 asv qs ", {
+  metapr2_export_qs (set_type = "public 1.0",
+                     directory = "output/metapr2/",
+                     do_cluster = TRUE)
+  # asv_set <- qs::qread("tests/testthat/output/metapr2/asv_set_cluster.qs")
+  # global <- qs::qread("tests/testthat/output/metapr2/global.qs")
 })
 

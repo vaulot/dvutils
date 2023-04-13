@@ -21,4 +21,5 @@ Note: Remove duplicates.
 }
 \examples{
 kmer("CATATGCTTGTCTCAAAGTTAAGCCA", kmer_width = 8)
+
 }

@@ -4,7 +4,7 @@
 \alias{pr2_read}
 \title{Reads the whole PR2 database into a data frame}
 \usage{
-pr2_read(taxo_levels_number = 8)
+pr2_read(taxo_levels_number = 9, trait_types = c("mixoplankton"))
 }
 \arguments{
 \item{taxo_levels_number}{integer - number of taxonomic levels, 8 or 9}

@@ -4,7 +4,11 @@
 \alias{pr2_taxo_check}
 \title{Check taxonomy}
 \usage{
-pr2_taxo_check(pr2_taxo, taxo_levels = pr2.env$taxo_levels, dir_taxo = "")
+pr2_taxo_check(
+  pr2_taxo,
+  taxo_levels = taxo_levels[[taxo_levels_number]],
+  dir_taxo = ""
+)
 }
 \arguments{
 \item{pr2_taxo}{dataframe - should contain eight or nine columns kingdom -> species or domain -> species}
@@ -24,6 +28,9 @@ This check the taxonomy for the following conditions:
 \item No taxon has 2 different parents
 \item Not taxon appears at different ranks
 }
+}
+\details{
+
 }
 \note{
 The input data frame does not need to be the whole pr2 taxo, can be taxo extracted from an Excel file.

@@ -48,7 +48,6 @@ gg_theme_bw_dv1 <- function() {
 #' @param bin Numeric - Size of the bins (default = 0.2)
 #' @return a ggplot object
 #' @examples
-#' @export
 #' @md
 gg_hist <- function(df,x, bin = 0.2) {
 
@@ -66,7 +65,6 @@ gg_hist <- function(df,x, bin = 0.2) {
 #' @param factor Character - Factor for the different densities
 #' @return a ggplot object
 #' @examples
-#' @export
 #' @md
 gg_density <- function(df,x, factor) {
 
@@ -83,7 +81,6 @@ gg_density <- function(df,x, factor) {
 #' @param factor Character - Which column use for x axis (quoted variable), should correspond to a **character column**
 #' @return a ggplot object
 #' @examples
-#' @export
 #' @md
 gg_boxplot <- function(df,y, factor) {
 
@@ -100,7 +97,6 @@ gg_boxplot <- function(df,y, factor) {
 #' @param factor Character - Which column use for x axis (quoted variable), should correspond to a **character column**
 #' @return a ggplot object
 #' @examples
-#' @export
 #' @md
 gg_violin <- function(df,y, factor) {
 

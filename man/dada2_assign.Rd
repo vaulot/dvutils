@@ -6,8 +6,8 @@
 \usage{
 dada2_assign(
   seq_file_name,
- 
-    ref_file_name = "C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.12.0/pr2_version_4.12.0_18S_dada2.fasta.gz",
+  ref_file_name =
+    "C:/daniel.vaulot@gmail.com/Databases/_PR2/versions/4.12.0/pr2_version_4.12.0_18S_dada2.fasta.gz",
   tax_levels = c("kingdom", "supergroup", "division", "class", "order", "family",
     "genus", "species")
 )

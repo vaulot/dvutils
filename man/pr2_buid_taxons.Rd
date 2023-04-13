@@ -4,14 +4,18 @@
 \alias{pr2_buid_taxons}
 \title{Build taxon table (long format)}
 \usage{
-pr2_buid_taxons(pr2_taxonomy, pr2.env, add_old_fields = FALSE)
+pr2_buid_taxons(
+  pr2_taxonomy,
+  taxo_levels = taxo_levels[[taxo_levels_number]],
+  add_old_fields = FALSE
+)
 }
 \arguments{
-\item{pr2_taxonomy}{dataframe - should contain eight columns kingdom -> species (this can be modified by using the pr2.env list)}
-
-\item{pr2.env}{list containing the taxon levels}
+\item{pr2_taxonomy}{dataframe - should contain eight columns kingdom -> species}
 
 \item{add_old_fields}{logical - If add_old_fields = TRUE then the following columns are appended: old_species_id, taxon_edited_version, taxon_edited_by,  taxon_removed_version, taxon_remark,  taxon_reference}
+
+\item{taxo_level}{list containing the taxon levels}
 }
 \value{
 Data frame pr2_taxons with columns "taxon_id" , "taxon_name", "taxon_level", "parent_id", "old_species_id",
@@ -26,5 +30,5 @@ old_species_id, taxon_edited_version, taxon_edited_by,  taxon_removed_version, t
 The input data frame does not need to be the whole pr2 taxo, can be taxo extracted from an Excel file.
 }
 \examples{
-pr2_taxons <- pr2_buid_taxons(pr2_taxonomy)
+pr2_taxons <- pr2_buid_taxons(pr2_taxonomy, 9)
 }

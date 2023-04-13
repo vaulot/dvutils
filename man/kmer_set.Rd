@@ -27,6 +27,3 @@ The start and end correspond to the position of the kmers on the reference seque
 This may break down if the same kmer is found twice...
 }
 
-\examples{
-
-}

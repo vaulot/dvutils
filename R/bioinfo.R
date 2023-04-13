@@ -225,7 +225,6 @@ XStringSet_to_df <- function(seq_set){
 #' A data frame
 #' @examples
 #' kmer("CATATGCTTGTCTCAAAGTTAAGCCA", kmer_width = 8)
-#' @export
 #'
 
 kmer  <- function(seq, kmer_width = 15) {
@@ -257,8 +256,6 @@ kmer  <- function(seq, kmer_width = 15) {
 #' @section To do:
 #' This may break down if the same kmer is found twice...
 #' @examples
-#'
-#' @export
 #'
 
   kmer_set <- function(seq_name, sequence, kmer_width = 8) {

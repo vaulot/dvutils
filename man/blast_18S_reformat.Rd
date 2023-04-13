@@ -64,7 +64,9 @@ The \strong{summary file} contains several set of columns
 
 \section{Column names}{
 
-The columns for the Blast are named as follows. For the summary a prefix is added\preformatted{  hit_top_ / hit_pr2_ / hit_cult_
+The columns for the Blast are named as follows. For the summary a prefix is added
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{  hit_top_ / hit_pr2_ / hit_cult_
 
   query_id, hit_id, hit_acc, hit_title, hit_sci_names
 
@@ -75,7 +77,7 @@ The columns for the Blast are named as follows. For the summary a prefix is adde
   gap_opens, query_start, query_end, hit_start, hit_end,
 
   evalue, bit_score
-}
+}\if{html}{\out{</div>}}
 }
 
 \section{Programming notes}{

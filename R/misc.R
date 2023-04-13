@@ -74,7 +74,6 @@ filename_change_ext <- function (filename, new_ext){
 #' TRUE if successful
 #' @examples
 #' latex_fix_bibfile(dv_bold=TRUE)
-#' @export
 #' @md
 #'
 latex_fix_bibfile <- function (filename="C:/Daniel/Paper reprints Bibtex/library.bib",dv_bold=FALSE) {
