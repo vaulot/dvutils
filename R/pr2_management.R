@@ -740,6 +740,11 @@ pr2_export_sqlite <- function(file_name) {
   db_disconnect(pr2_db_con)
   db_disconnect(duckdb_con)
 
+  # Compress duckdb file
+
+  R.utils::gzip(file_name, overwrite = TRUE, remove=TRUE)
+
+
   return(TRUE)
 
 }

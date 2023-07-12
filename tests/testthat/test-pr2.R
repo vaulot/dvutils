@@ -80,22 +80,17 @@ context("PR2")
 #     export( "output/pr2/pr2_taxo_trophic_group.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
 # })
 
-# pr2_export_duckdb --------------------------------------------------------------
 
-# test_that("Test pr2_duckdb  ", {
-#
-#   duckdb_file = here::here("tests", "testthat", "output", "pr2", "pr2.duckdb")
-#   pr2_export_duckdb(duckdb_file)
-#
-# })
-
-# pr2_export_sqlite --------------------------------------------------------------
+# pr2_export to databases --------------------------------------------------------
 
 
-test_that("Test pr2_sqlite  ", {
+test_that("Test PR2 storage in local database  ", {
 
-  sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
-  pr2_export_sqlite(sqlite_file)
+  # sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
+  # pr2_export_sqlite(sqlite_file)
+
+  duckdb_file = here::here("tests", "testthat", "output", "pr2", "pr2.duckdb")
+  pr2_export_duckdb(duckdb_file)
 
 })
 
