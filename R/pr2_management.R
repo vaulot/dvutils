@@ -738,7 +738,7 @@ pr2_export_sqlite <- function(file_name) {
 
   # Disonnect from databases
   db_disconnect(pr2_db_con)
-  db_disconnect(duckdb_con)
+  dbDisconnect(duckdb_con)
 
   # Compress duckdb file
 
