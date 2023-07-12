@@ -36,27 +36,27 @@ context("metapr2")
 
   # Export with filter for water only samples
 
-  # metapr2_export_asv (taxo_level = kingdom, taxo_name="Eukaryota",
-  #                     boot_level = class_boot, boot_min = 0,
-  #                     directory = "output/metapr2/47_filter/",
-  #                     dataset_id_selected = 47,
-  #                     filter_metadata = "((substrate == 'water') & is.na(substrate_description )) | (substrate == 'sediment trap material')",
-  #                     export_long_xls=TRUE,
-  #                     export_wide_xls=TRUE,
-  #                     export_sample_xls=TRUE,
-  #                     export_phyloseq = TRUE,
-  #                     export_fasta=TRUE,
-  #                     taxonomy_full = TRUE,
-  #                     use_hash = FALSE,
-  #                     sum_reads_min = 0)
-
+#   metapr2_export_asv (taxo_level = domain, taxo_name="Eukaryota",
+#                       boot_level = class_boot, boot_min = 0,
+#                       directory = "output/metapr2/47_filter/",
+#                       dataset_id_selected = 47,
+#                       filter_metadata = "((substrate == 'water') & is.na(substrate_description )) | (substrate == 'sediment trap material')",
+#                       export_long_xls=TRUE,
+#                       export_wide_xls=TRUE,
+#                       export_sample_xls=TRUE,
+#                       export_phyloseq = TRUE,
+#                       export_fasta=TRUE,
+#                       taxonomy_full = TRUE,
+#                       use_hash = FALSE,
+#                       sum_reads_min = 0)
+#
 # })
 
 test_that("metapr2 asv qs ", {
   metapr2_export_qs (set_type = "public 1.0",
                      directory = "output/metapr2/",
                      do_cluster = TRUE)
-  # asv_set <- qs::qread("tests/testthat/output/metapr2/asv_set_cluster.qs")
-  # global <- qs::qread("tests/testthat/output/metapr2/global.qs")
+  asv_set <- qs::qread("tests/testthat/output/metapr2/asv_set_cluster.qs")
+  global <- qs::qread("tests/testthat/output/metapr2/global.qs")
 })
 

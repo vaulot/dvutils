@@ -72,11 +72,11 @@ pr2_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
     filter (is.na(taxo_removed_version)) %>%
     collect()
 
-  pr2_taxo <- pr2_taxo %>%
-    rename_with(~ str_replace(.,ending, ""), contains(ending)) %>%
-    select(-contains(ending_removed)) %>%
-    select(any_of(taxo_levels[[taxo_levels_number]])) %>%
-    distinct()   # Very important because some levels are replicated because 2 species_8 may correspond to the same species_9
+  # pr2_taxo <- pr2_taxo %>%
+  #   rename_with(~ str_replace(.,ending, ""), contains(ending)) %>%
+  #   select(-contains(ending_removed)) %>%
+  #   select(any_of(taxo_levels[[taxo_levels_number]])) %>%
+  #   distinct()   # Very important because some levels are replicated because 2 species_8 may correspond to the same species_9
 
 
 
@@ -84,8 +84,21 @@ pr2_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
                            taxo_levels_number = taxo_levels_number) %>%
     select(species, any_of(trait_types))
 
+  worms_taxo <- tbl(pr2_db_con, "worms_taxonomy")%>%
+    filter(status == "accepted") %>%
+    select(worms_id = AphiaID,
+           species = scientificname,
+           worms_marine = isMarine,
+           worms_brackish = isBrackish,
+           worms_freshwater = isFreshwater,
+           worms_terrestrial = isTerrestrial) %>%
+    collect() %>%
+    mutate(species = str_replace(species, " ", "_"))  %>%
+    dplyr::distinct(species, .keep_all = TRUE)
+
   pr2_taxo <- pr2_taxo %>%
-    left_join(pr2_traits)
+    left_join(pr2_traits) %>%
+    left_join(worms_taxo)
 
 
   pr2_metadata <- tbl(pr2_db_con, "pr2_metadata") %>%
@@ -276,8 +289,8 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
     print(glue::glue("Taxa repeated {nrow(taxa_repeated)} done \n\n"))
     print(taxa_repeated)
 
-    # This is from manually input allocation
-    for (taxon_level in  taxon_levels) {
+    # This is from manually input allocation - must go from species to domain
+    for (taxon_level in  rev(taxon_levels)) {
 
     print(glue::glue("Level {taxon_level} \n"))
 
@@ -599,7 +612,19 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
 # pr2_export SQLite -----------------------------------------
 #' @title Export the PR2 database to a SQLite file
 #' @description
-#' This will save the pr2 database in SQLite databas as 4 tables (pr2_main, pr2_sequences, pr2_metadata, pr2_taxo)
+#' This will save the pr2 database in SQLite database, the following tables
+#' * pr2_main
+#' * pr2_sequences
+#' * pr2_metadata
+#' * pr2_taxo
+#' * pr2_assign_bayes
+#' * pr2_traits
+#' * pr2_countries
+#' * pr2_primers
+#' * pr2_primer_sets
+#' * worms_taxonomy
+#' * eukribo_v2
+#' * pr2_taxonomy_5.0_8_levels
 #' @param file_name character - full path of file where to save
 #' @return
 #' TRUE is succesful
@@ -610,55 +635,110 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
 
 pr2_export_sqlite <- function(file_name) {
 
-# Read the PR2 full tables including removed records
+  export_table_sqlite <- function(table_name, indexes = list()) {
+
+    table <- tbl(pr2_db_con, table_name) |>
+      collect()
+
+    copy_to(sqlite_db_con, table, name = table_name, indexes= indexes,
+            temporary=FALSE, overwrite = TRUE)
+
+  }
+
+
+
   pr2_db_con <- db_connect(db_info("pr2_google"))
-  pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
-    filter (is.na(removed_version))%>%
-    collect()
+  sqlite_db_con <- db_connect_sqlite(file_name)
 
-  pr2_seq <- tbl(pr2_db_con, "pr2_sequences") %>%
-    collect()
+  # Read the PR2 full tables including removed records
 
-  pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
-    filter (is.na(taxo_removed_version))%>%
-    collect()
-
-
-  pr2_metadata <- tbl(pr2_db_con, "pr2_metadata")%>%
-    collect()
-
-  # pr2_countries <- tbl(pr2_db_con, "pr2_countries")%>%
-  #   collect()
-  #
-  # pr2_assign_silva <- tbl(pr2_db_con, "pr2_assign_silva")%>%
-  #   collect()
-
-  # pr2_assign_bayes <- tbl(pr2_db_con, "pr2_assign_bayes")%>%
-  #   collect()
+  export_table_sqlite ("pr2_main",  list("pr2_accession", "genbank_accession", "species") )
+  export_table_sqlite ("pr2_taxonomy",  list("species") )
+  export_table_sqlite ("pr2_sequences",  list("pr2_accession") )
+  export_table_sqlite ("pr2_metadata",  list("genbank_accession") )
+  export_table_sqlite ("pr2_countries",  list("pr2_country") )
+  export_table_sqlite ("pr2_assign_silva",  list("pr2_accession") )
+  export_table_sqlite ("pr2_assign_bayes",  list("pr2_accession") )
+  export_table_sqlite ("pr2_traits",  list("trait_id") )
+  export_table_sqlite ("worms_taxonomy",  list("AphiaID") )
+  export_table_sqlite ("eukribo_v2",  list("gb_accession") )
+  export_table_sqlite ("pr2_primers",  list("primer_id") )
+  export_table_sqlite ("pr2_primer_sets",  list("primer_set_id") )
 
   db_disconnect(pr2_db_con)
+  db_disconnect(sqlite_db_con)
 
-# Write to local database
-  pr2_db_con <- db_connect_sqlite(file_name)
-
-  copy_to(pr2_db_con, pr2_main, name = "pr2_main", indexes= list("pr2_accession", "genbank_accession", "species"),
-          temporary=FALSE, overwrite = TRUE)
-  copy_to(pr2_db_con, pr2_seq, name = "pr2_sequences", indexes= list("pr2_accession"),
-          temporary=FALSE, overwrite = TRUE)
-  copy_to(pr2_db_con, pr2_metadata, name = "pr2_metadata", indexes= list( "genbank_accession"),
-          temporary=FALSE, overwrite = TRUE)
-  copy_to(pr2_db_con, pr2_taxo, name = "pr2_taxonomy", indexes= list( "species"),
-          temporary=FALSE, overwrite = TRUE)
-  # copy_to(pr2_db_con, pr2_countries, name = "pr2_countries", indexes= list( "pr2_country"),
-  #         temporary=FALSE, overwrite = TRUE)
-  # copy_to(pr2_db_con, pr2_assign_silva, name = "pr2_assign_silva", indexes= list( "pr2_accession"),
-  #         temporary=FALSE, overwrite = TRUE)
-  # copy_to(pr2_db_con, pr2_assign_bayes, name = "pr2_assign_bayes", indexes= list( "pr2_accession"),
-  #         temporary=FALSE, overwrite = TRUE)
-
-  db_disconnect(pr2_db_con)
+  # Compress sqlite file
 
   R.utils::gzip(file_name, overwrite = TRUE, remove=TRUE)
+
+  return(TRUE)
+
+}
+
+# pr2_export Duckdb -----------------------------------------
+#' @title Export the PR2 database to a Duckdb databasee
+#' @description
+#' This will save the pr2 database in Duckdb database as tables
+#' * pr2_main
+#' * pr2_sequences
+#' * pr2_metadata
+#' * pr2_taxo
+#' * pr2_assign_bayes
+#' * pr2_traits
+#' * pr2_countries
+#' * pr2_primers
+#' * pr2_primer_sets
+#' * worms_taxonomy
+#' * eukribo_v2
+#' * pr2_taxonomy_5.0_8_levels
+#' NOTE: duckdb file size is same as SQLite but cannot be read with DBeaver
+#'
+#' @param file_name character - full name where to save
+#' @return
+#' TRUE is successful
+#' @examples
+#' pr2_export_duckdb("Mydirectory/pr2.duckdb")
+#' @export
+#' @md
+
+  pr2_export_duckdb <- function(file_name) {
+
+  # Function to export each table to duckdb
+
+  export_table_duckdb <- function(table_name, indexes = list()) {
+      # indexes are not used for the time being
+
+      # Read table from Google
+      table <- tbl(pr2_db_con, table_name) |>
+        collect()
+
+      # Export table to duckdb
+      duckdb::dbWriteTable(duckdb_con, name = table_name, value = table, overwrite = TRUE)
+
+    }
+
+  # Connect to databases
+  pr2_db_con <- db_connect(db_info("pr2_google"))
+  duckdb_con <- dbConnect(duckdb::duckdb(dbdir = file_name))
+
+  # Ewport to duckdb
+  export_table_duckdb ("pr2_main",  list("pr2_accession", "genbank_accession", "species") )
+  export_table_duckdb ("pr2_taxonomy",  list("species") )
+  export_table_duckdb ("pr2_sequences",  list("pr2_accession") )
+  export_table_duckdb ("pr2_metadata",  list("genbank_accession") )
+  export_table_duckdb ("pr2_countries",  list("pr2_country") )
+  export_table_duckdb ("pr2_assign_silva",  list("pr2_accession") )
+  export_table_duckdb ("pr2_assign_bayes",  list("pr2_accession") )
+  export_table_duckdb ("pr2_traits",  list("trait_id") )
+  export_table_duckdb ("worms_taxonomy",  list("AphiaID") )
+  export_table_duckdb ("eukribo_v2",  list("gb_accession") )
+  export_table_duckdb ("pr2_primers",  list("primer_id") )
+  export_table_duckdb ("pr2_primer_sets",  list("primer_set_id") )
+
+  # Disonnect from databases
+  db_disconnect(pr2_db_con)
+  db_disconnect(duckdb_con)
 
   return(TRUE)
 
@@ -720,11 +800,6 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
   pr2$main <- pr2_read(taxo_levels_number, traits_used)
   if(test) {pr2$main <- head(pr2$main, 2000)}
 
-  pr2$taxonomy <- pr2$main %>%
-    select(pr2_accession, any_of(c(taxo_levels[[taxo_levels_number]], traits_used))) %>%
-    count(across(any_of(c(taxo_levels[[taxo_levels_number]], traits_used))), name = "n_sequences") %>%
-    arrange(across(any_of(taxo_levels[[taxo_levels_number]])))
-
   pr2$chimera <- pr2$main %>%
     filter(!is.na(chimera)) %>%
     select_if(~!all(is.na(.)))  # remove empty columns
@@ -753,6 +828,11 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
     select(-contains("bayes")) %>%
     select(-contains("boot")) %>%
     select_if(~!all(is.na(.)))  # remove empty columns
+
+  pr2$taxonomy <- pr2$main %>%
+    select(any_of(c(taxo_levels[[taxo_levels_number]], traits_used)), contains("worms")) %>%
+    count(across(everything()), name = "n_sequences") %>%
+    arrange(across(any_of(taxo_levels[[taxo_levels_number]])))
 
 
 # All sequences (merged file only)
@@ -784,8 +864,8 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
 
 # SQLite - Uncomment for version 5.0.0
 
-  # print("Exporting SQLite")
-  # pr2_export_sqlite(pr2.env$file_sqlite)
+  print("Exporting SQLite")
+  pr2_export_sqlite(pr2.env$file_sqlite)
 
 
 # R package - qs file

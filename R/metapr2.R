@@ -56,10 +56,10 @@
 #' @export
 #' @md
 #'
-metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
+metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
                                boot_level = class_boot, boot_min = 0,
                                assigned_with = "dada2",
-                               reference_database = "pr2_4.14.0",
+                               reference_database = "pr2_5.0.0",
                                directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
                                dataset_id_selected = c(1:500),
                                filter_samples = NULL,
@@ -74,7 +74,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
                                sum_reads_min = 0,
                                sample_reads_min = 1000) {
 
-  taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species")
+  taxo_levels <- c("domain", "supergroup", "division", "subdivision", "class", "order", "family", "genus", "species")
   taxo_levels_boot <- str_c(taxo_levels, "_boot")
 
   # Define a variable to hold the data set id as character
@@ -98,21 +98,21 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
 
   # Assign default values if errors
   if(!(assigned_with %in% c("dada2", "decipher"))) {assigned_with = "dada2"}
-  if(!(reference_database %in% c("pr2_4.12.0", "pr2_4.14.0"))) {reference_database = "pr2_4.14.0"}
+  if(!(reference_database %in% c("pr2_4.12.0", "pr2_5.0.0"))) {reference_database = "pr2_5.0.0"}
 
   # Read the assignements
 
-  if(reference_database == "pr2_4.14.0") {
+  if(reference_database == "pr2_5.0.0") {
     if (assigned_with == "dada2") {
-      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.14.0") %>%
+      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_5.0.0") %>%
         collect()
     } else if (assigned_with == "decipher") {
-      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_decipher_pr2_4.14.0") %>%
+      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_decipher_pr2_5.0.0") %>%
         collect()
     }
 
-    if(reference_database == "pr2_4.12.0") {
-        asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.12.0")
+    if(reference_database == "pr2_4.14.0") {
+        asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.14.0")
     }
 
     # Merge the assignments
@@ -255,9 +255,10 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
   sample_photo_reads <- asv_set %>%
     filter((division %in% c(
       "Chlorophyta", "Cryptophyta", "Rhodophyta",
-      "Haptophyta", "Ochrophyta"
-    )) |
-      (class == "Filosa-Chlorarachnea")) %>%
+      "Haptophyta")
+      ) |
+      ((subdivision %in% "Gyrista") & str_detect(class, "phyceae")) |
+      (class %in% "Chlorarachniophyceae")) %>%
     count(file_code, wt=n_reads, name="reads_corrected_photo")
 
   # Add corrected counts to asv_set and sample_list -------------------
@@ -320,10 +321,10 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     if (use_hash) {
       # If use_hash, much remove the bootstrap values that may be different for the different asvs with same hash tag
       asv_set_wide <- asv_set %>%
-        select(asv_code, kingdom:species, sequence, file_code, n_reads)
+        select(asv_code, domain:species, sequence, file_code, n_reads)
     } else {
       asv_set_wide <- asv_set %>%
-        select(asv_code, kingdom:species_boot, sequence, sequence_hash, file_code, n_reads)
+        select(asv_code, domain:species_boot, sequence, sequence_hash, file_code, n_reads)
     }
 
     asv_set_wide <- asv_set_wide %>%
@@ -365,7 +366,7 @@ metapr2_export_asv <- function(taxo_level = kingdom, taxo_name="Eukaryota",
     # 3. Taxonomy table
 
     tax <-  asv_set %>%
-      select(asv_code, kingdom:species) %>%
+      select(asv_code, domain:species) %>%
       distinct(asv_code, .keep_all = TRUE) %>%
       column_to_rownames(var = "asv_code")
 
@@ -552,7 +553,8 @@ metapr2_export_qs <- function(set_type = "public 2.0",
   # List to store all global variables
   global <- list()
 
-  global$taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species", "asv_code")
+  # global$taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species", "asv_code") - PR2 version 4.14.0
+  global$taxo_levels <- c("domain", "supergroup", "division",  "subdivision", "class", "order", "family", "genus", "species", "asv_code")
   global$traits <- c("ecological_function", "trophic_group")
 
   # All samples are normalized to 100 with 3 decimals, so that it corresponds to a percent
@@ -630,8 +632,8 @@ metapr2_export_qs <- function(set_type = "public 2.0",
   # 73 sets
   if (set_type == "all"){
     datasets_selected <- metapr2_export_datasets() %>%
-      filter(processing_pipeline_metapr2 == "dada2",
-             gene == "18S rRNA")
+      filter(processing_pipeline_metapr2 == "dada2",   # To remove Tara Swarm
+             gene == "18S rRNA")                       # To remove 16S plastid
     cluster_version = "All 2022-10-25"
     # sub_dir = "sets_all"
   }
@@ -649,7 +651,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
 
 
   asv_set <- metapr2_export_asv(
-    taxo_level = kingdom,
+    taxo_level = domain,
     taxo_name = "Eukaryota",
     dataset_id_selected = datasets_selected$dataset_id,
     filter_samples = "fraction_name != 'femto' &
@@ -817,7 +819,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
 
   cat("Datasets: ", nrow(asv_set$datasets))
 
-  pr2_traits <- dvutils::pr2_traits_merge()  %>%
+  pr2_traits <- dvutils::pr2_traits_merge(trait_types = global$traits)  %>%
     select(any_of(c(global$taxo_levels, global$traits)))
 
   asv_set$fasta <- asv_set$fasta %>%
@@ -845,7 +847,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
 
   depth_level_ordered <- c("under ice", "surface", "euphotic",
                            "mesopelagic", "bathypelagic",
-                           "composite" ,"bottom","land" )
+                           "composite", "bottom")
   fraction_name_ordered <- c("pico", "pico-nano", "nano",
                              "nano-micro", "micro",
                              "meso" ,"total" )
@@ -858,10 +860,10 @@ metapr2_export_qs <- function(set_type = "public 2.0",
 
   asv_set$samples <- asv_set$samples %>%
     mutate(substrate = stringr::str_replace(substrate, "first year ice", "ice"),
-           depth_level = forcats::fct_relevel(depth_level, levels = depth_level_ordered),
-           fraction_name = forcats::fct_relevel(fraction_name, levels = fraction_name_ordered),
-           substrate = forcats::fct_relevel(substrate, levels = substrate_ordered),
-           ecosystem = forcats::fct_relevel(ecosystem, levels = ecosystems_ordered)
+           depth_level = forcats::fct_relevel(depth_level, depth_level_ordered),
+           fraction_name = forcats::fct_relevel(fraction_name, fraction_name_ordered),
+           substrate = forcats::fct_relevel(substrate, substrate_ordered),
+           ecosystem = forcats::fct_relevel(ecosystem, ecosystems_ordered)
     )
 
 

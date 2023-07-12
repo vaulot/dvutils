@@ -18,6 +18,7 @@ Imports:
   DBI,
   dbplyr,
   dplyr,
+  duckdb,
   fs,
   genbankr,
   ggplot2,

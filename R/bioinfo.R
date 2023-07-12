@@ -555,3 +555,22 @@ seq_reverse_complement <- function(seqs){
   return(as.character(reverseComplement(DNAStringSet(seqs))))
 
 }
+
+# seq_hash : Sequence hash (vectorial) -----------------------------------------
+
+#' @title Sequence hash (vectorial)
+#'
+#' @description
+#' Get the hash value for a sequences
+#' @param seq vector of sequences
+#' @return
+#' Hash value as a vector
+#' @examples
+#' seq_hash (c("ATTTTCGGG", "ATTTTTGGG"))
+#' @md
+#' @export
+seq_hash <- function(seqs){
+
+  purrr::map_chr(seqs, digest::sha1)
+
+}

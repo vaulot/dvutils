@@ -68,26 +68,50 @@ context("PR2")
 
 # test_that("Test pr2_traits_merge  ", {
 #
-#   pr2_taxo_traits <- pr2_traits_merge(debug = TRUE)
-# #   # pr2_taxo_traits <- pr2_traits_merge(trait_types = "ecological_function", debug = TRUE)
-# #   pr2_taxo_traits <- pr2_traits_merge(trait_types = "trophic_group", debug = TRUE)
-# #
-#   export(pr2_taxo_traits, "output/pr2_taxo_traits.xlsx", overwrite = TRUE)
+#   # pr2_taxo_traits <- pr2_traits_merge(debug = TRUE)
+#   pr2_taxo_traits <- pr2_traits_merge(trait_types = "ecological_function", debug = TRUE) |>
+#      dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
+#      select(domain:species, ecological_function) |>
+#      export("output/pr2/pr2_taxo_ecological_function.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
+#
+#   pr2_taxo_traits <- pr2_traits_merge(trait_types = "trophic_group", debug = TRUE) |>
+#     dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
+#     select(domain:species, trophic_group) |>
+#     export( "output/pr2/pr2_taxo_trophic_group.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
 # })
+
+# pr2_export_duckdb --------------------------------------------------------------
+
+# test_that("Test pr2_duckdb  ", {
+#
+#   duckdb_file = here::here("tests", "testthat", "output", "pr2", "pr2.duckdb")
+#   pr2_export_duckdb(duckdb_file)
+#
+# })
+
+# pr2_export_sqlite --------------------------------------------------------------
+
+
+test_that("Test pr2_sqlite  ", {
+
+  sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
+  pr2_export_sqlite(sqlite_file)
+
+})
 
 # pr2_export --------------------------------------------------------------
 
 
 
 
-test_that("Test pr2_export  ", {
-
-  # source("pr2_init.R")
-  pr2_directory = str_c(here::here("tests", "testthat", "output", "pr2"), "/")
-
-  pr2_export_all(pr2_directory,
-                 version = "5.0.0",
-                 taxo_levels_number = 9,
-                 traits_used = c("mixoplankton") ,
-                 test=TRUE)
-})
+# test_that("Test pr2_export  ", {
+#
+#   # source("pr2_init.R")
+#   pr2_directory = str_c(here::here("tests", "testthat", "output", "pr2"), "/")
+#
+#   pr2_export_all(pr2_directory,
+#                  version = "5.0.0",
+#                  taxo_levels_number = 9,
+#                  traits_used = c("mixoplankton") ,
+#                  test=FALSE)
+# })
