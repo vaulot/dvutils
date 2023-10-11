@@ -165,10 +165,13 @@ fastq_subsample <- function(fastq_path, n_seq=1000, random=FALSE) {
 
   # Process R1
     # Create connection to be able to close it after
-     file_in <- ShortRead::FastqFile(fnsR1[i])
+    #  file_in <- ShortRead::FastqFile(fnsR1[i])
 
     # Sample the number of sequences needed
      sampler <- ShortRead::FastqStreamer(con=fnsR1[i], n=n_sampled)
+    
+    # The seed need to be reset before each yield to have the matching pairs
+     set.seed(123) 
 
     # Draw an instance of the sequences
      sample <- ShortRead::yield(sampler)
@@ -177,17 +180,17 @@ fastq_subsample <- function(fastq_path, n_seq=1000, random=FALSE) {
      file_out <- str_replace(fnsR1[i],"R1", "R1.subsample")
      print(file_out)
      ShortRead::writeFastq(sample, file=file_out, compress=FALSE)
-     close(file_in)
+    #  close(file_in)
 
   # Process R2
-     file_in <- ShortRead::FastqFile(fnsR2[i])
+    #  file_in <- ShortRead::FastqFile(fnsR2[i])
      sampler <- ShortRead::FastqStreamer(con=fnsR2[i], n=n_sampled)
      set.seed(123) # The seed need to be reset before each yield to have the matching pairs
      sample<-ShortRead::yield(sampler)
      file_out <- str_replace(fnsR2[i],"R2", "R2.subsample")
      print(file_out)
      ShortRead::writeFastq(sample, file=file_out, compress=FALSE)
-     close(file_in)
+    #  close(file_in)
 
   }
 

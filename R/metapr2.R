@@ -823,7 +823,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
     select(any_of(c(global$taxo_levels, global$traits)))
 
   asv_set$fasta <- asv_set$fasta %>%
-    select(- seq_name, -any_of(cols_to_remove), -contains("_boot")) %>%
+    select(- seq_name, -any_of(cols_to_remove)) %>% # Remove , -contains("_boot")
     left_join(pr2_traits)
 
 
