@@ -20,6 +20,7 @@
 #'    * samples= sample_list (list of sammples with metadata)
 #'
 #' NOTE: if all export_long_xls, export_wide_xls, export_phyloseq are false, abundances are not exported
+#' @param gene if left empty "" then the whole sequence is exported, if "LSU" or "SSU" look in barrnap table to extract seqence
 #' @param taxo_level The taxonomic level for selection (do not quote), e.g. class or genus
 #' @param taxo_name  The name of the taxonomic level selected, e.g. "Chlorophyta", can be a vector c("Chlorophyta", "Haptophyta")
 #' @param boot_level The taxonomic level for bootstrap filtering (do not quote), e.g. class_boot or genus_boot
@@ -35,6 +36,7 @@
 #' @param export_sample_xls  If TRUE, an xlsx file is produced containing the sample list
 #' @param export_phyloseq  If TRUE, a phyloseq file is produced and a phyloseq object producted
 #' @param export_fasta  If TRUE, a fasta is produced
+#' @param export_fasta_sum_reads  If TRUE, sum of reads of ASV is added to FASTA file following the VSEARCH format
 #' @param taxonomy_full If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species
 #' @param use_hash If TRUE, the asvs with identical has will be merged and called by their hash value (sequence_hash)
 #' @param sum_reads_min This is the minimum number of reads (summed over the datasets selected) for an asv to be included
@@ -56,7 +58,8 @@
 #' @export
 #' @md
 #'
-metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
+metapr2_export_asv <- function(gene="",
+                               taxo_level = domain, taxo_name="Eukaryota",
                                boot_level = class_boot, boot_min = 0,
                                assigned_with = "dada2",
                                reference_database = "pr2_5.0.0",
@@ -69,6 +72,7 @@ metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
                                export_sample_xls=FALSE,
                                export_phyloseq = FALSE,
                                export_fasta=FALSE,
+                               export_fasta_sum_reads=FALSE,
                                taxonomy_full = TRUE,
                                use_hash = FALSE,
                                sum_reads_min = 0,
@@ -76,6 +80,16 @@ metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
 
   taxo_levels <- c("domain", "supergroup", "division", "subdivision", "class", "order", "family", "genus", "species")
   taxo_levels_boot <- str_c(taxo_levels, "_boot")
+
+  # Use correct values for gene
+  if (!(gene %in% c("", "SSU", "LSU", "5S"))) gene = ""
+
+  # For SSU and LSU, do not use the hash values for asv_code
+  if (gene !="") use_hash = FALSE
+
+  # Cannot export full taxonomy when adding number of reads
+  if (export_fasta_sum_reads) taxonomy_full = FALSE
+
 
   # Define a variable to hold the data set id as character
   dataset_id_char <- case_when ((500 %in% dataset_id_selected) ~ "all",
@@ -188,6 +202,9 @@ metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
   metapr2_datasets <- tbl(metapr2_db_con, "metapr2_datasets") %>%
     collect()
 
+  metapr2_asv_barrnap <- tbl(metapr2_db_con, "metapr2_asv_barrnap") %>%
+    collect()
+
   db_disconnect(metapr2_db_con)
 
   # Merging together asvs with same hash value -------------------
@@ -287,7 +304,9 @@ metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
 
   # File names -------------------
   generate_file_name <- function (type, ext = "xlsx") str_c(directory, type, dataset_id_char ,
-                                                   "_", taxo_name_label ,"_",Sys.Date(),".", ext)
+                                                   "_", taxo_name_label ,
+                                                   "_", if_else(gene!="", str_c(gene, "_"),""),
+                                                   Sys.Date(),".", ext)
 
 
   file_asv_fasta <- generate_file_name("metapr2_asv_set_",  "fasta")
@@ -308,9 +327,25 @@ metapr2_export_asv <- function(taxo_level = domain, taxo_name="Eukaryota",
       mutate(seq_name = str_c(asv_code, species, sep="|") )
   }
 
+  if (export_fasta_sum_reads) {
+    asv_fasta <- asv_fasta %>%
+      mutate(seq_name = str_c(seq_name,';size=',sum_reads_asv))
+  }
+
+  if (gene != "") {
+    metapr2_asv_barrnap <- metapr2_asv_barrnap |>
+      filter(gene == gene) |>
+      slice_head(by = asv_code) |>
+      select(asv_code, start, end)
+
+    asv_fasta <- left_join(asv_fasta, metapr2_asv_barrnap) |>
+      filter(!is.na(start)) |>
+      mutate(sequence =  str_sub(sequence, start, end))
+  }
+
   # Export asv file
   if (export_fasta){
-    fasta_write(asv_fasta,file_asv_fasta, compress = FALSE, taxo_include = TRUE)
+    fasta_write(asv_fasta,file_asv_fasta, compress = FALSE, taxo_include = taxonomy_full)
     rio::export(asv_fasta, file_asv_xlsx, overwrite = TRUE)
   }
 
@@ -594,6 +629,22 @@ metapr2_export_qs <- function(set_type = "public 2.0",
     datasets_selected <- metapr2_export_datasets() %>%
       filter(dataset_id %in% c(1, 34, 35, 205, 206))
     do_cluster <- false
+    # sub_dir = "sets_basic"
+  }
+
+  # Nansen legacy cruise
+  if (set_type == "nansen"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(dataset_id %in% c(398))
+    do_cluster <- FALSE
+    # sub_dir = "sets_basic"
+  }
+
+  # PacBio + Illumina TS series + Mahwash dataset
+  if (set_type == "pacbio"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(dataset_id %in% c(393:395))
+    do_cluster <- FALSE
     # sub_dir = "sets_basic"
   }
 

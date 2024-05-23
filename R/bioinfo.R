@@ -169,9 +169,9 @@ fastq_subsample <- function(fastq_path, n_seq=1000, random=FALSE) {
 
     # Sample the number of sequences needed
      sampler <- ShortRead::FastqStreamer(con=fnsR1[i], n=n_sampled)
-    
+
     # The seed need to be reset before each yield to have the matching pairs
-     set.seed(123) 
+     set.seed(123)
 
     # Draw an instance of the sequences
      sample <- ShortRead::yield(sampler)
@@ -421,6 +421,61 @@ dada2_assign <- function(seq_file_name,
   return(dada2_result)
 
     }
+
+# dada2_assign_correct : Correct assignation based on bootstrap values ------------------------------
+
+#' @title Correct assignation based on bootstrap values
+#' @description
+#' Columns with low bootstrap are reassigned to previous column with X added
+#'
+#' @param df Data frame with columns domain:species and domain_boot:species_boot
+#' @param boot_threshold Boot threshold for correct assignement
+#' @return
+#' A data frame with the new assignements and columns domain_dada2:species_dada2
+#' @examples
+#' @export
+#' @md
+#'
+dada2_assign_correct <- function(df, boot_threshold = 80){
+
+  ## Function to update taxonomy for one column based on bootstrap values
+
+  # * This needs to be applied from higher to lower level !
+  # * Needs to be applied with pmap_chr for the mutate
+  # * This is almost 80 times faster than going row by row !
+
+  taxonomy_update_col <- function(taxo_level, taxo_value, taxo_value_previous_level, taxo_boot){
+    if (taxo_boot < boot_threshold) {
+      if (taxo_level == "species") {
+        taxo_value <- str_c(taxo_value_previous_level, "_sp.")
+      } else {
+        if (str_detect(taxo_value_previous_level, "_X")) {
+          taxo_value <- str_c(taxo_value_previous_level, "X")
+        } else {
+          taxo_value <- str_c(taxo_value_previous_level, "_X")
+        }
+      }
+    }
+    return(taxo_value)
+  }
+  # Simple function that returns this input to do a mutate
+  equal <- function(x) x
+
+  df <-  df|>
+    mutate(across(.cols = all_of(taxo_levels[[9]]), .fns = equal, .names = "{.col}_dada2")) |>
+    mutate(supergroup = purrr::pmap_chr(.l = list("supergroup", supergroup_dada2, domain, supergroup_boot), .f= taxonomy_update_col),
+           division = purrr::pmap_chr(.l = list("division", division_dada2, supergroup, division_boot), .f= taxonomy_update_col),
+           subdivision = purrr::pmap_chr(.l = list("subdivision", subdivision_dada2, division, subdivision_boot), .f= taxonomy_update_col),
+           class = purrr::pmap_chr(.l = list("class", class_dada2, subdivision, class_boot), .f= taxonomy_update_col),
+           order = purrr::pmap_chr(.l = list("order", order_dada2, class, order_boot), .f= taxonomy_update_col),
+           family = purrr::pmap_chr(.l = list("family", family_dada2, order, family_boot), .f= taxonomy_update_col),
+           genus = purrr::pmap_chr(.l = list("genus", genus_dada2, family, genus_boot), .f= taxonomy_update_col),
+           species = purrr::pmap_chr(.l = list("species", species_dada2, genus, species_boot), .f= taxonomy_update_col)
+    )
+
+  return(df)
+
+}
 
 
 # get_primer_position : get primer position ----------------------------------------------

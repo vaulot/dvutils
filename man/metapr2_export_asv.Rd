@@ -5,12 +5,12 @@
 \title{Exports the metapr2 database}
 \usage{
 metapr2_export_asv(
-  taxo_level = kingdom,
+  taxo_level = domain,
   taxo_name = "Eukaryota",
   boot_level = class_boot,
   boot_min = 0,
   assigned_with = "dada2",
-  reference_database = "pr2_4.14.0",
+  reference_database = "pr2_5.0.0",
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
   dataset_id_selected = c(1:500),
   filter_samples = NULL,

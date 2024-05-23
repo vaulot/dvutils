@@ -3,7 +3,7 @@
 context("metapr2")
 
 
-# test_that("metapr2 asv export ", {
+test_that("metapr2 asv export ", {
   # Export all the asv in a single fasta
   # metapr2_export_asv()
 
@@ -49,14 +49,32 @@ context("metapr2")
 #                       taxonomy_full = TRUE,
 #                       use_hash = FALSE,
 #                       sum_reads_min = 0)
-#
+
+metapr2_export_asv (gene = "SSU",
+                    taxo_level = class, taxo_name="Coscinodiscophyceae",
+                    boot_level = order_boot, boot_min = 0,
+                    directory = "output/metapr2/PacBio/",
+                    dataset_id_selected = c(393),
+                    filter_metadata = NULL,
+                    export_long_xls=FALSE,
+                    export_wide_xls=FALSE,
+                    export_sample_xls=FALSE,
+                    export_phyloseq = FALSE,
+                    export_fasta=TRUE,
+                    export_fasta_sum_reads=TRUE,
+                    taxonomy_full = TRUE,
+                    use_hash = FALSE,
+                    sum_reads_min = 0)
+
+
+# test_that("metapr2 asv qs ", {
+#   metapr2_export_qs (set_type = "public 1.0",
+#                      directory = "output/metapr2/",
+#                      do_cluster = TRUE)
+#   asv_set <- qs::qread("tests/testthat/output/metapr2/asv_set_cluster.qs")
+#   global <- qs::qread("tests/testthat/output/metapr2/global.qs")
 # })
 
-test_that("metapr2 asv qs ", {
-  metapr2_export_qs (set_type = "public 1.0",
-                     directory = "output/metapr2/",
-                     do_cluster = TRUE)
-  asv_set <- qs::qread("tests/testthat/output/metapr2/asv_set_cluster.qs")
-  global <- qs::qread("tests/testthat/output/metapr2/global.qs")
-})
 
+
+})

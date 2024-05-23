@@ -182,8 +182,8 @@ genbank_parse_rentrez_xml <-function(accession, acc_step = 50, seq_length_max = 
       # print(recs)
 
       accession_set_filtered <- data.frame(
-        genbank_accession = extract_from_esummary(recs, "caption"),
-        seq_length = extract_from_esummary(recs, "slen")
+        genbank_accession = extract_from_esummary_clean(recs, "caption"),
+        seq_length = extract_from_esummary_clean(recs, "slen")
       ) %>%
         filter(seq_length < seq_length_discard) %>%
         pull(genbank_accession)
@@ -226,6 +226,12 @@ genbank_parse_rentrez_xml <-function(accession, acc_step = 50, seq_length_max = 
   return(metadata)
 }
 
+# extract_from_esummary_clean ---------------------------------------------
+# Function to replace null fields by NA and convert to character
+extract_from_esummary_clean <- function(recs, field) {
+  purrr::map_chr(extract_from_esummary(recs, field),
+                 ~ifelse(is.null(.),"",.))
+}
 
 # genbank_search ---------------------------------------------
 #'@title Search GenBank
@@ -249,6 +255,8 @@ genbank_parse_rentrez_xml <-function(accession, acc_step = 50, seq_length_max = 
 
 genbank_search <-function(query, db="nuccore", seq_max = 20000) {
 
+
+
   # The next line is to prevent curl errors : https://github.com/ropensci/rentrez/issues/127
   httr::set_config(httr::config(http_version = 0))
 
@@ -267,25 +275,27 @@ genbank_search <-function(query, db="nuccore", seq_max = 20000) {
     for( seq_start in seq(0,seq_max-1, seq_step)){
        recs <- entrez_summary(db=db, web_history=GB_entrez$web_history,
                               retmax=seq_step, retstart=seq_start)
-       genbank_accession <- extract_from_esummary(recs, "caption")
-       gb_definition <- extract_from_esummary(recs, "title")
-       gb_date <- extract_from_esummary(recs, "createdate")
-       gb_organism <- extract_from_esummary(recs, "organism")
-       gb_strain <- extract_from_esummary(recs, "strain")
-       gb_info_fields <- extract_from_esummary(recs, "subtype")
-       gb_info_data <- extract_from_esummary(recs, "subname")
-       gb_seq_length <- extract_from_esummary(recs, "slen")
-       gb_db <- extract_from_esummary(recs, "sourcedb")
-       gb_project_id <- extract_from_esummary(recs, "projectid")
-       gb_biosample <- extract_from_esummary(recs, "biosample")
+       genbank_accession <- extract_from_esummary_clean(recs, "caption")
+       gb_definition <- extract_from_esummary_clean(recs, "title")
+       gb_date <- extract_from_esummary_clean(recs, "createdate")
+       gb_organism <- extract_from_esummary_clean(recs, "organism")
+       gb_strain <- extract_from_esummary_clean(recs, "strain")
+       gb_info_fields <- extract_from_esummary_clean(recs, "subtype")
+       gb_info_data <- extract_from_esummary_clean(recs, "subname")
+       gb_seq_length <- extract_from_esummary_clean(recs, "slen")
+       gb_db <- extract_from_esummary_clean(recs, "sourcedb")
+       gb_project_id <- extract_from_esummary_clean(recs, "projectid")
+       gb_biosample <- extract_from_esummary_clean(recs, "biosample")
 
 
-       seq_info[[as.character(seq_start)]] <- data.frame(genbank_accession, gb_definition,
+       seq_info[[as.character(seq_start)]] <- tibble(genbank_accession, gb_definition,
                                                          gb_date, gb_organism,gb_strain,
                                                          gb_info_fields, gb_info_data,
                                                          gb_seq_length, gb_db,
                                                          gb_project_id, gb_biosample)
        cat( nrow(seq_info[[as.character(seq_start)]]), "sequences obtained\r")
+       # export(seq_info[[as.character(seq_start)]],
+       #        str_c("C:/daniel.vaulot@gmail.com/Scripts/R/dvutils/tests/testthat/output/genbankoutput/genbank_search_",as.character(seq_start),".tsv"))
     }
   }
 
@@ -533,14 +543,14 @@ genbank_download_parse_rentrez <-function(accession, sequence_keep=TRUE, acc_ste
       }
 
       recs <- entrez_summary(db="nuccore", web_history=GB_entrez$web_history)
-      genbank_accession <- extract_from_esummary(recs, "caption")
-      gb_definition <- extract_from_esummary(recs, "title")
-      gb_date <- extract_from_esummary(recs, "createdate")
-      gb_organism <- extract_from_esummary(recs, "organism")
-      gb_info_fields <- extract_from_esummary(recs, "subtype")
-      gb_info_data <- extract_from_esummary(recs, "subname")
-      gb_id <- rentrez::extract_from_esummary(recs, "uid")
-      gb_project_id = rentrez::extract_from_esummary(recs, "projectid")
+      genbank_accession <- extract_from_esummary_clean(recs, "caption")
+      gb_definition <- extract_from_esummary_clean(recs, "title")
+      gb_date <- extract_from_esummary_clean(recs, "createdate")
+      gb_organism <- extract_from_esummary_clean(recs, "organism")
+      gb_info_fields <- extract_from_esummary_clean(recs, "subtype")
+      gb_info_data <- extract_from_esummary_clean(recs, "subname")
+      gb_id <- rentrez::extract_from_esummary_clean(recs, "uid")
+      gb_project_id = rentrez::extract_from_esummary_clean(recs, "projectid")
 
       for (j in 1:length(recs)) {
         # j = 1 # for testing

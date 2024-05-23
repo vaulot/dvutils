@@ -2,6 +2,10 @@
 
 context("Bioinfo")
 
+# Jump over all the other tests ====================================================
+if (FALSE) {
+  # Jump, jump... ====================================================================
+
 test_that("Test primer match  ", {
   pos <- get_primer_position("ATT",c("ATTTTCGGG", "AGTTTCGGG"), orientation="fwd", mismatches=0)
   write_tsv(pos, "output/primer_position.tsv")
@@ -65,3 +69,21 @@ test_that("Test write_fasta ", {
   fasta_write(df,"output/otu_no_taxo.fasta", compress=FALSE, taxo_include=FALSE)
   # expect_equal(write_fasta_taxo(df,"output/otu_taxo.fasta", compress=FALSE), TRUE)
 })
+
+# End of the Loop to go over the tests -----------------------------
+}
+
+
+test_that("Test dada2 correct ", {
+
+  df <- rio::import("data/dada2_assigned.xlsx")
+
+  df  <- dada2_assign_correct(df, boot_threshold = 80)
+
+  rio::export(df, "output/dada2_assigned_corrected.xlsx")
+  # expect_equal(write_fasta_taxo(df,"output/otu_taxo.fasta", compress=FALSE), TRUE)
+})
+
+
+
+

@@ -747,7 +747,87 @@ pr2_export_sqlite <- function(file_name) {
 
   return(TRUE)
 
+  }
+
+
+# pr2_export_emu -------------------------------------------------------
+#' @title Export the PR2 database to construct database for emu
+#' @description
+#' Three files are exported
+#'
+#' @param pr2_directory Directory above the versions directory
+#' @param version PR2 version as character (e.g. 5.0.0)
+#'
+#' @return
+#' TRUE if successful
+#' @examples
+#' pr2 <- pr2_export_emu()
+#' @export
+#' @md
+#'
+pr2_export_emu <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
+                           version = "5.0.1") {
+
+  version_directory = str_c(pr2_directory, "versions/",version,"/")
+
+  # Files for export
+  file_head <- str_c(version_directory, "pr2_version_", version)
+
+  file_emu_fasta <- str_c(file_head,"_emu", ".fasta")
+  file_emu_map <- str_c(file_head,"_emu_map", ".tsv")
+  file_emu_taxo <- str_c(file_head,"_emu_taxo", ".tsv")
+
+  print("Using pr2_google")
+
+  # Info for the Google dabase
+  pr2_db <- db_info("pr2_google")
+
+  pr2_db_con <- db_connect(pr2_db)
+
+  pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
+    filter(is.na(removed_version),
+           is.na(quarantined_version),
+           !is.na(species)) |>
+    select(pr2_accession, species)  %>%
+    collect()
+
+
+  pr2_seq <- tbl(pr2_db_con, "pr2_sequences")|>
+    select(pr2_accession, sequence) %>%
+    collect()
+
+  pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
+    filter (is.na(taxo_removed_version)) %>%
+    select(tax_id=taxo_id, domain:species) |>
+    collect()
+
+  pr2_main <- pr2_main |>
+    left_join(pr2_taxo) |>
+    left_join(pr2_seq) |>
+    filter(!is.na(tax_id))
+
+  pr2_seq_out <- Biostrings::DNAStringSet(pr2_main$sequence)
+  names(pr2_seq_out) <- pr2_main$pr2_accession
+
+  pr2_taxo <- pr2_main |>
+    select (tax_id, domain:genus, species) |>
+    distinct()
+
+  pr2_main <- pr2_main |>
+    select(pr2_accession, tax_id)
+
+  rio::export(pr2_main, file_emu_map, col.names = FALSE )
+  rio::export(pr2_taxo, file_emu_taxo, col.names = TRUE )
+  Biostrings::writeXStringSet(pr2_seq_out, file_emu_fasta,
+                              compress=FALSE, width = 80)
+
+
+
+  return(TRUE)
+
 }
+
+
 
 # pr2_export_all -----------------------------------------
 #' @title Export the PR2 database (all files)
