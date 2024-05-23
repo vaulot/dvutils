@@ -5,6 +5,7 @@
 \title{Exports the metapr2 database}
 \usage{
 metapr2_export_asv(
+  gene = "",
   taxo_level = domain,
   taxo_name = "Eukaryota",
   boot_level = class_boot,
@@ -20,6 +21,7 @@ metapr2_export_asv(
   export_sample_xls = FALSE,
   export_phyloseq = FALSE,
   export_fasta = FALSE,
+  export_fasta_sum_reads = FALSE,
   taxonomy_full = TRUE,
   use_hash = FALSE,
   sum_reads_min = 0,
@@ -27,6 +29,8 @@ metapr2_export_asv(
 )
 }
 \arguments{
+\item{gene}{if left empty "" then the whole sequence is exported, if "LSU" or "SSU" look in barrnap table to extract seqence}
+
 \item{taxo_level}{The taxonomic level for selection (do not quote), e.g. class or genus}
 
 \item{taxo_name}{The name of the taxonomic level selected, e.g. "Chlorophyta", can be a vector c("Chlorophyta", "Haptophyta")}
@@ -56,6 +60,8 @@ metapr2_export_asv(
 \item{export_phyloseq}{If TRUE, a phyloseq file is produced and a phyloseq object producted}
 
 \item{export_fasta}{If TRUE, a fasta is produced}
+
+\item{export_fasta_sum_reads}{If TRUE, sum of reads of ASV is added to FASTA file following the VSEARCH format}
 
 \item{taxonomy_full}{If TRUE, the fasta file contains the full taxonomy (8 levels), if false only contains the species}
 
