@@ -31,6 +31,7 @@
 #' @param dataset_id_selected  Integer vector, e.g. 23 or c(21, 23) or 21:23
 #' @param filter_samples Character expression for filter, e.g. "DNA_RNA == 'DNA'" (use single quotes inside double quotes)
 #' @param filter_metadata  Character expression for filter, e.g. "substrate == 'sediment trap material'" (use single quotes inside double quotes)
+#' @param need_accession  If TRUE, only samples with NCBI_SRA_accession not NULL are exported (this can be NA if not available)
 #' @param export_long_xls  If TRUE, an xlsx file is produced containing the final long data frame
 #' @param export_wide_xls  If TRUE, an xlsx file is produced containing the final wide data frame
 #' @param export_sample_xls  If TRUE, an xlsx file is produced containing the sample list
@@ -59,12 +60,15 @@
 #' @md
 #'
 metapr2_export_asv <- function(gene="",
-                               taxo_level = domain, taxo_name="Eukaryota",
-                               boot_level = class_boot, boot_min = 0,
+                               taxo_level = domain,
+                               taxo_name="Eukaryota",
+                               boot_level = class_boot,
+                               boot_min = 0,
                                assigned_with = "dada2",
-                               reference_database = "pr2_5.0.0",
+                               reference_database = "pr2_5.1.0",
                                directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
                                dataset_id_selected = c(1:500),
+                               need_accession = TRUE,
                                filter_samples = NULL,
                                filter_metadata = NULL,
                                export_long_xls=FALSE,
@@ -112,29 +116,17 @@ metapr2_export_asv <- function(gene="",
 
   # Assign default values if errors
   if(!(assigned_with %in% c("dada2", "decipher"))) {assigned_with = "dada2"}
-  if(!(reference_database %in% c("pr2_4.12.0", "pr2_5.0.0"))) {reference_database = "pr2_5.0.0"}
 
-  # Read the assignements
-
-  if(reference_database == "pr2_5.0.0") {
-    if (assigned_with == "dada2") {
-      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_5.0.0") %>%
+   table_assignment = str_c("metapr2_asv", assigned_with, reference_database, sep= '_' )
+   asv_set_updated <- tbl(metapr2_db_con, table_assignment) %>%
         collect()
-    } else if (assigned_with == "decipher") {
-      asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_decipher_pr2_5.0.0") %>%
-        collect()
-    }
 
-    if(reference_database == "pr2_4.14.0") {
-        asv_set_updated <- tbl(metapr2_db_con, "metapr2_asv_dada2_pr2_4.14.0")
-    }
 
     # Merge the assignments
 
     asv_set <- asv_set %>%
       select(-any_of(c(taxo_levels, taxo_levels_boot))) %>%
       left_join(asv_set_updated, by = c("sequence_hash" = "sequence_hash"))
-  }
 
 
   # Create a label for the taxons selected to be used for the files -------------------
@@ -175,6 +167,12 @@ metapr2_export_asv <- function(gene="",
   if (!is.null(filter_samples)) {
     metapr2_samples <- metapr2_samples %>%
       filter(eval(rlang::parse_expr(filter_samples)))
+  }
+
+  # Filter samples that do not have Accession numbers
+  if (need_accession) {
+    metapr2_samples <- metapr2_samples %>%
+      filter(!is.na(NCBI_SRA_accession))
   }
 
   # Filter samples that do not have enough reads
@@ -223,7 +221,8 @@ metapr2_export_asv <- function(gene="",
 
   sample_list <- metapr2_samples %>%
     # Use a inner_join here so that if no metadata then sample is not found in sample list
-    inner_join(metapr2_metadata) %>%
+    # 2024-05-24 - Reverse to left-join to include samples without metadata
+    left_join(metapr2_metadata) %>%
     filter(dataset_id %in% dataset_id_selected) %>%
     left_join(metapr2_datasets, by = c("dataset_id" = "dataset_id")) %>%
     select(-contains(c("dada2", "primer", "web")), -dataset_path) %>%
@@ -233,9 +232,11 @@ metapr2_export_asv <- function(gene="",
   asv_set <-  asv_set %>%
     left_join(metapr2_asv_abundance) %>%
     # Use a inner_join here so that if no sample then sample is not found in asv_set
-    inner_join(metapr2_samples) %>%
+    # 2024-05-24 - Reverse to left-join to include samples without metadata
+    left_join(metapr2_samples) %>%
     # Use a inner_join here so that if no metadata then sample is not found in asv_set
-    inner_join(metapr2_metadata) %>%
+    # 2024-05-24 - Reverse to left-join to include samples without metadata
+    left_join(metapr2_metadata) %>%
     left_join(metapr2_datasets, by = c("dataset_id" = "dataset_id")) %>%
     select(-contains(c("dada2", "primer", "paper", "web")), -dataset_path, -asv_id) %>%
     # Next line removes all the column that are empty
@@ -578,7 +579,7 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
 #' @export
 #' @md
 #'
-metapr2_export_qs <- function(set_type = "public 2.0",
+metapr2_export_qs <- function(set_type = "public 3.0",
                               do_cluster = FALSE,
                               directory = "data/") {
 
@@ -590,7 +591,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
 
   # global$taxo_levels <- c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species", "asv_code") - PR2 version 4.14.0
   global$taxo_levels <- c("domain", "supergroup", "division",  "subdivision", "class", "order", "family", "genus", "species", "asv_code")
-  global$traits <- c("ecological_function", "trophic_group")
+  global$traits <- c("mixoplankton", "HAB_species", "ecological_function")
 
   # All samples are normalized to 100 with 3 decimals, so that it corresponds to a percent
   global$n_reads_tot_normalized = 100
@@ -620,31 +621,17 @@ metapr2_export_qs <- function(set_type = "public 2.0",
                      "dada2_maxEE","dada2_max_number_asvs")
 
 
-  # Data sets selected ----------------------------------
 
+  need_accession = FALSE
 
+  # Data sets obsolete - NOT USED  ----------------------------------
   # For class - 5 sets
 
   if (set_type == "basic"){
     datasets_selected <- metapr2_export_datasets() %>%
       filter(dataset_id %in% c(1, 34, 35, 205, 206))
     do_cluster <- false
-    # sub_dir = "sets_basic"
-  }
-
-  # Nansen legacy cruise
-  if (set_type == "nansen"){
-    datasets_selected <- metapr2_export_datasets() %>%
-      filter(dataset_id %in% c(398))
-    do_cluster <- FALSE
-    # sub_dir = "sets_basic"
-  }
-
-  # PacBio + Illumina TS series + Mahwash dataset
-  if (set_type == "pacbio"){
-    datasets_selected <- metapr2_export_datasets() %>%
-      filter(dataset_id %in% c(393:395))
-    do_cluster <- FALSE
+    need_accession = TRUE
     # sub_dir = "sets_basic"
   }
 
@@ -653,6 +640,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
     datasets_selected <- metapr2_export_datasets() %>%
       filter(metapr2_version == "1.0")
     cluster_version = "1.0"
+    need_accession = TRUE
     # sub_dir = "sets_public"
   }
 
@@ -661,8 +649,10 @@ metapr2_export_qs <- function(set_type = "public 2.0",
     datasets_selected <- metapr2_export_datasets() %>%
       filter(metapr2_version %in% c("1.0", "2.0"))
     cluster_version = "2.0"
+    need_accession = TRUE
     # sub_dir = "sets_public"
   }
+
 
   # 41 sets + green edge
   if (set_type == "green-edge"){
@@ -680,12 +670,43 @@ metapr2_export_qs <- function(set_type = "public 2.0",
     # sub_dir = "sets_public"
   }
 
-  # 73 sets
+
+  # Data sets selected ----------------------------------
+
+  # Nansen legacy cruise
+  if (set_type == "nansen"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(dataset_id %in% c(398))
+    do_cluster <- FALSE
+    # sub_dir = "sets_basic"
+  }
+
+  # PacBio + Illumina TS series + Mahwash dataset
+  if (set_type == "pacbio"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(dataset_id %in% c(393:395))
+    do_cluster <- FALSE
+    # sub_dir = "sets_basic"
+  }
+
+  # Version 3.0 - xx sets
+  if (set_type == "public 3.0"){
+    datasets_selected <- metapr2_export_datasets() %>%
+      filter(metapr2_version %in% c("1.0", "2.0", "3.0"))
+    cluster_version = "3.0"
+    need_accession = TRUE
+    # sub_dir = "sets_public"
+  }
+
+
+  # All - xx sets
   if (set_type == "all"){
     datasets_selected <- metapr2_export_datasets() %>%
-      filter(processing_pipeline_metapr2 == "dada2",   # To remove Tara Swarm
+      filter(!is.null(metapr2_version),
+             processing_pipeline_metapr2 == "dada2",   # To remove Tara Swarm
              gene == "18S rRNA")                       # To remove 16S plastid
-    cluster_version = "All 2022-10-25"
+    cluster_version = "3.0 all"
+    need_accession = FALSE
     # sub_dir = "sets_all"
   }
 
@@ -710,6 +731,7 @@ metapr2_export_qs <- function(set_type = "public 2.0",
                    file_code !='' &
                    !is.na(DNA_RNA)",
     filter_metadata =  "is.na(experiment_name)",
+    need_accession = need_accession,
     export_fasta = FALSE,
     export_wide_xls = FALSE,
     export_sample_xls = FALSE,

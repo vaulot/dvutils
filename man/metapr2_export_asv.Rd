@@ -11,9 +11,10 @@ metapr2_export_asv(
   boot_level = class_boot,
   boot_min = 0,
   assigned_with = "dada2",
-  reference_database = "pr2_5.0.0",
+  reference_database = "pr2_5.1.0",
   directory = "C:/daniel.vaulot@gmail.com/Databases/_metaPR2/export/",
   dataset_id_selected = c(1:500),
+  need_accession = TRUE,
   filter_samples = NULL,
   filter_metadata = NULL,
   export_long_xls = FALSE,
@@ -46,6 +47,8 @@ metapr2_export_asv(
 \item{directory}{Directory where the files are saved (finish with /)}
 
 \item{dataset_id_selected}{Integer vector, e.g. 23 or c(21, 23) or 21:23}
+
+\item{need_accession}{If TRUE, only samples with NCBI_SRA_accession not NULL are exported (this can be NA if not available)}
 
 \item{filter_samples}{Character expression for filter, e.g. "DNA_RNA == 'DNA'" (use single quotes inside double quotes)}
 

@@ -24,7 +24,7 @@ This will save the pr2 database in Duckdb database as tables
 \item pr2_countries
 \item pr2_primers
 \item pr2_primer_sets
-\item worms_taxonomy
+\item taxonomy_worms
 \item eukribo_v2
 \item pr2_taxonomy_5.0_8_levels
 NOTE: duckdb file size is same as SQLite but cannot be read with DBeaver

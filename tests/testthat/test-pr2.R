@@ -66,33 +66,53 @@ context("PR2")
 # pr2_traits --------------------------------------------------------------
 
 
-# test_that("Test pr2_traits_merge  ", {
-#
-#   # pr2_taxo_traits <- pr2_traits_merge(debug = TRUE)
-#   pr2_taxo_traits <- pr2_traits_merge(trait_types = "ecological_function", debug = TRUE) |>
-#      dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
-#      select(domain:species, ecological_function) |>
-#      export("output/pr2/pr2_taxo_ecological_function.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
-#
-#   pr2_taxo_traits <- pr2_traits_merge(trait_types = "trophic_group", debug = TRUE) |>
-#     dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
-#     select(domain:species, trophic_group) |>
-#     export( "output/pr2/pr2_taxo_trophic_group.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
-# })
+test_that("Test pr2_traits_merge  ", {
+
+  # pr2_taxo_traits <- pr2_traits_merge(debug = TRUE)
+  pr2_taxo_traits <- pr2_traits_merge(trait_types = "ecological_function", debug = TRUE) |>
+     dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
+     select(domain:species, ecological_function) |>
+     export("output/pr2/pr2_taxo_ecological_function.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
+
+  # pr2_taxo_traits <- pr2_traits_merge(trait_types = "HAB_species", debug = TRUE) |>
+  #   dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
+  #   select(domain:species, HAB_species) |>
+  #   export("output/pr2/pr2_taxo_HAB_species.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
+
+  # pr2_taxo_traits <- pr2_traits_merge(trait_types = "trophic_group", debug = TRUE) |>
+  #   dplyr::arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)  |>
+  #   select(domain:species, trophic_group) |>
+  #   export( "output/pr2/pr2_taxo_trophic_group.xlsx", overwrite = TRUE, firstActiveRow = 2, colWidths = "auto")
+})
 
 
 # pr2_export to databases --------------------------------------------------------
 
 
-test_that("Test PR2 storage in local database  ", {
+# test_that("Test PR2 storage in local database  ", {
+#
+#   # sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
+#   # pr2_export_sqlite(sqlite_file)
+#
+#   duckdb_file = here::here("tests", "testthat", "output", "pr2", "versions", "5.1.0",  "pr2.duckdb")
+#   pr2_export_duckdb(duckdb_file)
+#
+# })
 
-  # sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
-  # pr2_export_sqlite(sqlite_file)
+# pr2_export to emu --------------------------------------------------------
 
-  duckdb_file = here::here("tests", "testthat", "output", "pr2", "pr2.duckdb")
-  pr2_export_duckdb(duckdb_file)
+#
+# test_that("Test PR2 storage in local database  ", {
+#
+#   # sqlite_file = here::here("tests", "testthat", "output", "pr2", "pr2.sqlite")
+#   # pr2_export_sqlite(sqlite_file)
+#
+#   emu_dir = stringr::str_c(here::here("tests", "testthat", "output", "pr2"), "/")
+#   pr2_export_emu(pr2_directory = emu_dir)
+#
+# })
 
-})
+
 
 # pr2_export --------------------------------------------------------------
 
@@ -105,8 +125,24 @@ test_that("Test PR2 storage in local database  ", {
 #   pr2_directory = str_c(here::here("tests", "testthat", "output", "pr2"), "/")
 #
 #   pr2_export_all(pr2_directory,
-#                  version = "5.0.0",
+#                  version = "5.1.0",
 #                  taxo_levels_number = 9,
-#                  traits_used = c("mixoplankton") ,
-#                  test=FALSE)
+#                  trait_types = c("mixoplankton") ,
+#                  test = FALSE,
+#                  all_files = FALSE)
+# })
+
+# pr2_export_gbif --------------------------------------------------------------
+
+
+
+
+# test_that("Test pr2_export  ", {
+#
+#   # source("pr2_init.R")
+#   pr2_directory = str_c(here::here("tests", "testthat", "output", "pr2"), "/")
+#
+#   pr2_export_gbif(pr2_directory,
+#                  version = "5.1.0",
+#                  test = FALSE)
 # })

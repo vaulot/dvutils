@@ -30,5 +30,5 @@ The database access codes is obtained with the function db_info("pr2_google").
 \strong{Important}: This gets the current taxonomic  database and does not include taxa that have been removed.
 }
 \examples{
-pr2_taxo_traits <- pr2_traits_merge(trait_types = c("mixotrophy", "ecological_function"), taxo_levels_number = 9, debug = TRUE)
+pr2_taxo_traits <- pr2_traits_merge(trait_types = c("mixoplankton", "ecological_function", "HAB_species"), taxo_levels_number = 9, debug = TRUE)
 }

@@ -121,3 +121,20 @@ unfill <- function(x) {
   same <- x == dplyr::lag(x)
   ifelse(!is.na(same) & same, NA, x)
 }
+
+
+# Round to previous 100 --------------------
+#' @title Round a value to previous 100
+#' @description
+#'  Round a value to previous 100
+#' @return
+#' New value
+#' @examples
+#' numbers <- c(150, 230, 780, 900, 1001, 0, -250)
+#' rounded_numbers <- sapply(numbers, round_down_to_nearest_100)
+#' @export
+#' @md
+
+round_down_to_nearest_100 <- function(number) {
+  return(floor(number / 100) * 100)
+}

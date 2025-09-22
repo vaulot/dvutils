@@ -5,7 +5,7 @@
 \title{Exports the metapr2 database in qs file for shiny app}
 \usage{
 metapr2_export_qs(
-  set_type = "public 2.0",
+  set_type = "public 3.0",
   do_cluster = FALSE,
   directory = "data/"
 )

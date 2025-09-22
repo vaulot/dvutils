@@ -133,6 +133,9 @@ db_info <- function(database_name,
   db_pr2_operon_google <- list(dbname='pr2_operon',
                         default.file=file_cnf,
                         groups="google")
+  db_pr2_rod_google <- list(dbname='pr2_rod',
+                         default.file=file_cnf,
+                         groups="google")
   db_pr2_google <- list(dbname='pr2',
                         default.file=file_cnf,
                         groups="google")
@@ -152,6 +155,7 @@ db_info <- function(database_name,
   dbinfo <- NULL
   if (database_name == "rcc") {db_info=db_rcc}
   if (database_name == "pr2_operon_google") {db_info=db_pr2_operon_google}
+  if (database_name == "pr2_rod_google") {db_info=db_pr2_rod_google}
   if (database_name == "pr2_google") {db_info=db_pr2_google}
   if (database_name == "metapr2_google") {db_info=db_metapr2_google}
   # if (database_name == "rcc_local") {db_info=db_rcc_local}

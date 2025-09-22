@@ -15,135 +15,321 @@
 #  To do:
 #  * Use the dbplyr library to build queries...
 
-
 # source("C:/Users/vaulot/Google Drive/Scripts/R library/dv_function_db.R")
 # source("C:/Users/vaulot/Google Drive/Scripts/R library/dv_function_genbank.R")
 # source("C:/Users/vaulot/Google Drive/Scripts/R library/dv_function_misc.R")
 
-taxo_levels<- list()
-taxo_levels[[8]] = c("kingdom", "supergroup", "division", "class", "order", "family", "genus", "species")
-taxo_levels[[9]] = c("domain", "supergroup", "division", "subdivision", "class", "order", "family", "genus", "species")
+taxo_levels <- list()
+taxo_levels[[8]] = c(
+  "kingdom",
+  "supergroup",
+  "division",
+  "class",
+  "order",
+  "family",
+  "genus",
+  "species"
+)
+taxo_levels[[9]] = c(
+  "domain",
+  "supergroup",
+  "division",
+  "subdivision",
+  "class",
+  "order",
+  "family",
+  "genus",
+  "species"
+)
 taxo_levels_number = 9
 
+
+# rod_read -----------------------------------------
+#' @title Export the ROD database to data frame
+#' @description
+#' This will save the ROD database as a dataframe.
+#' @param directory string direcotry where to save the files
+#' @return
+#' Write the the files in qs format and return the rod list
+#' @examples
+#' rod_export_qs("C:/Desktop/")
+#' @export
+
+rod_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
+  # file_rod = str_c(pr2_directory, "rod.qs")
+
+  # Read ROD database
+  pr2_db <- db_info("pr2_rod_google")
+
+  pr2_db_con <- db_connect(pr2_db)
+
+  rod_operon_variants <- tbl(pr2_db_con, "ROD_1.2_operon_variants") |>
+    filter(is.na(rod_removed_date)) |>
+    select(
+      pr2_accession = seqid,
+      reference_sequence = reference,
+      genbank_accession = assembly_id,
+      sequence_length = length,
+      sequence,
+      species_rod = species,
+      gb_taxonomy = lineage
+    ) |>
+    collect() |>
+    mutate(
+      organelle = "nucleus",
+      gene = "operon_rRNA",
+      reference_sequence = case_when(reference_sequence == "Yes" ~ 1)
+    )
+
+  rod_metadata <- tbl(pr2_db_con, "ROD_1.2_NCBI_metadata") |>
+    select(
+      assembly_accession,
+      gb_organism = organism_name,
+      infraspecific_name,
+      isolate,
+      assembly_level,
+      assembly_type,
+      gc_percent,
+      pubmed_id
+    ) |>
+    collect()
+
+  rod_metadata <- rod_metadata |>
+    separate(
+      assembly_accession,
+      into = c("genbank_accession"),
+      sep = "[.]",
+      remove = TRUE,
+      extra = "drop",
+      fill = "warn"
+    ) |>
+    mutate(
+      pr2_sample_type = case_when(
+        str_detect(infraspecific_name, "strain|cultivar") ~ "culture",
+        str_detect(infraspecific_name, "ecotype") ~ "isolate",
+        !is.na(isolate) ~ "isolate",
+        TRUE ~ "unknown"
+      )
+    )
+
+  rod_vs_pr2_taxonomy <- tbl(pr2_db_con, "ROD_1.2_vs_pr2_taxonomy") |>
+    select(species, species_rod) |>
+    collect()
+
+  db_disconnect(pr2_db_con)
+
+  # Read pr2_taxonomy
+
+  pr2_taxonomy <- pr2_taxo_full_read(
+    taxo_levels_number = taxo_levels_number,
+    trait_types = trait_types
+  )
+
+  # pr2_taxonomy |> count(species) |> filter(n>1)
+
+  # Assemble ROD database
+
+  rod <- rod_operon_variants |>
+    left_join(rod_metadata) |>
+    left_join(rod_vs_pr2_taxonomy) |>
+    left_join(pr2_taxonomy)
+
+  return(rod)
+}
 
 # pr2_read -------------------------------------------------------
 #' @title Reads the whole PR2 database into a data frame
 #' @description
 #' The database access codes is obtained with the function db_info("pr2_google").
 #'
-#' **Important**: This gets the whole database, including sequences that have been removed.  These sequences must be filtered out before export using pr2  <- pr2 %>% filter (is.na(removed_version)). However the taxo entries that have been removed are already removed.
+#' **Important**:
+#' If keep_only_released_records = FALSE
+#'      This gets the whole database, including sequences that have been removed.
+#'      These sequences must be filtered out before export
+#'      using pr2  <- pr2 %>% filter (is.na(removed_version)).
+#'
+#' If keep_only_released_records = TRUE
+#'      Only keeps record that makes it to the final release
+#'
+#' However the taxo entries that have been removed are already removed.
 #' @param taxo_levels_number integer - number of taxonomic levels, 8 or 9
+#' @param trait_types character - which trait types to integrate
+#' @param keep_all_fields logical - if false, only get pr2_main, pr2_sequences and pr2_taxonomy
 #' @return
 #' A data frame with all the columns from pr2.
 #' @examples
-#' pr2 <- pr2_read(taxo_levels_number = 8)
+#' pr2 <- pr2_read(taxo_levels_number = 8, trait_types = c("mixoplankton"))
 #' @export
 #' @md
 #'
-pr2_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
-
+pr2_read <- function(
+  taxo_levels_number = 9,
+  trait_types = c("mixoplankton"),
+  keep_only_released_records = FALSE,
+  keep_all_fields=TRUE) {
   # This the level set not used (i.e. 8 if use 9 and conversely)
   taxo_levels_number_not_used = ifelse(taxo_levels_number == 8, 9, 8)
 
   # Ending for the taxonomic levels ("_8" or "_9")
-  ending = str_c("_",taxo_levels_number) # Ending of taxonomic fields
-  ending_removed = str_c("_",taxo_levels_number_not_used) # Ending of taxonomic fields
-
+  ending = str_c("_", taxo_levels_number) # Ending of taxonomic fields
+  ending_removed = str_c("_", taxo_levels_number_not_used) # Ending of taxonomic fields
 
   print("Using pr2_google")
 
-# Info for the Google dabase
+  # Info for the Google dabase
   pr2_db <- db_info("pr2_google")
 
   pr2_db_con <- db_connect(pr2_db)
 
   pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
-    collect() %>%
-    rename_with(~ str_replace(.,ending, ""), contains(ending)) %>%
-    select(-contains(ending_removed))%>%
+    collect() # %>%
+    # rename_with(~ str_replace(., ending, ""), contains(ending)) %>%
+    # select(-contains(ending_removed)) # %>%
     # select(-contains("edited")) %>%
-    select(-contains("_id"))
-
+    # select(-contains("_id"))
 
   pr2_seq <- tbl(pr2_db_con, "pr2_sequences") %>%
     collect()
 
-  pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
-    filter (is.na(taxo_removed_version)) %>%
-    collect()
-
+  # pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
+  #   filter (is.na(taxo_removed_version)) %>%
+  #   collect()
+  #
+  # # pr2_taxo <- pr2_taxo %>%
+  # #   rename_with(~ str_replace(.,ending, ""), contains(ending)) %>%
+  # #   select(-contains(ending_removed)) %>%
+  # #   select(any_of(taxo_levels[[taxo_levels_number]])) %>%
+  # #   distinct()   # Very important because some levels are replicated because 2 species_8 may correspond to the same species_9
+  #
+  #
+  #
+  # pr2_traits <- pr2_traits_merge(trait_types = trait_types,
+  #                          taxo_levels_number = taxo_levels_number) %>%
+  #   select(species, any_of(trait_types))
+  #
+  # worms_taxo <- tbl(pr2_db_con, "taxonomy_worms")%>%
+  #   filter(status == "accepted") %>%
+  #   select(worms_id = AphiaID,
+  #          species = scientificname,
+  #          worms_marine = isMarine,
+  #          worms_brackish = isBrackish,
+  #          worms_freshwater = isFreshwater,
+  #          worms_terrestrial = isTerrestrial) %>%
+  #   collect() %>%
+  #   mutate(species = str_replace(species, " ", "_"))  %>%
+  #   dplyr::distinct(species, .keep_all = TRUE)
+  #
+  # gbif_taxo <- tbl(pr2_db_con, "taxonomy_gbif") |>
+  #   filter(!is.na(usageKey)) |>
+  #   select(species, gbif_id = usageKey) %>%
+  #   collect() %>%
+  #   dplyr::distinct(species, .keep_all = TRUE)
+  #
   # pr2_taxo <- pr2_taxo %>%
-  #   rename_with(~ str_replace(.,ending, ""), contains(ending)) %>%
-  #   select(-contains(ending_removed)) %>%
-  #   select(any_of(taxo_levels[[taxo_levels_number]])) %>%
-  #   distinct()   # Very important because some levels are replicated because 2 species_8 may correspond to the same species_9
+  #   left_join(pr2_traits) %>%
+  #   left_join(worms_taxo) |>
+  #   left_join(gbif_taxo)
 
+  if (keep_all_fields)  { # Collect all fields
 
+      pr2_metadata <- tbl(pr2_db_con, "pr2_metadata") %>%
+        collect() %>%
+        select(-contains("_id"))
 
-  pr2_traits <- pr2_traits_merge(trait_types = trait_types,
-                           taxo_levels_number = taxo_levels_number) %>%
-    select(species, any_of(trait_types))
+      pr2_countries <- tbl(pr2_db_con, "pr2_countries") %>%
+        collect()
 
-  worms_taxo <- tbl(pr2_db_con, "worms_taxonomy")%>%
-    filter(status == "accepted") %>%
-    select(worms_id = AphiaID,
-           species = scientificname,
-           worms_marine = isMarine,
-           worms_brackish = isBrackish,
-           worms_freshwater = isFreshwater,
-           worms_terrestrial = isTerrestrial) %>%
-    collect() %>%
-    mutate(species = str_replace(species, " ", "_"))  %>%
-    dplyr::distinct(species, .keep_all = TRUE)
+      pr2_assign_bayes <- tbl(pr2_db_con, "pr2_assign_bayes") %>%
+        collect()
 
-  pr2_taxo <- pr2_taxo %>%
-    left_join(pr2_traits) %>%
-    left_join(worms_taxo)
+      pr2_assign_silva <- tbl(pr2_db_con, "pr2_assign_silva") %>%
+        select(pr2_accession, silva_taxonomy) %>%
+        collect()
 
-
-  pr2_metadata <- tbl(pr2_db_con, "pr2_metadata") %>%
-    collect() %>%
-    select(-contains("_id"))
-
-  pr2_countries <- tbl(pr2_db_con, "pr2_countries") %>%
-    collect()
-
-
-
-  pr2_assign_bayes <- tbl(pr2_db_con, "pr2_assign_bayes") %>%
-    collect()
-
-  pr2_assign_silva <- tbl(pr2_db_con, "pr2_assign_silva") %>%
-    select(pr2_accession, silva_taxonomy) %>%
-    collect()
-
-  eukribo <- tbl(pr2_db_con, "eukribo_v2") %>%
-    select(genbank_accession = gb_accession, eukribo_UniEuk_taxonomy_string, eukribo_V4, eukribo_V9) %>%
-    collect()
-
-# Join the tables and keep only sequences that are not removed
-
-  pr2 <- pr2_main %>%
-    left_join(pr2_taxo, by = join_by(species == species), multiple = "all") %>%
-    left_join(pr2_seq) %>%
-    left_join(pr2_metadata, multiple = "all") %>%
-    left_join(pr2_countries, multiple = "all") %>%
-    left_join(eukribo, multiple = "all") %>%
-    left_join(pr2_assign_bayes) %>%
-    left_join(pr2_assign_silva) %>%
-    relocate(!!taxo_levels[[taxo_levels_number]], .after = pr2_accession) %>%
-    mutate(organelle_code = case_when((organelle == "nucleus" | is.na(organelle)) ~ "",
-                                      TRUE ~ str_sub(organelle, 1,4) )) %>%
-    mutate_at(taxo_levels[[taxo_levels_number]], ~str_c(.x, organelle_code, sep = ":")) %>%  # Add the organelle at end of taxo
-    mutate_at(taxo_levels[[taxo_levels_number]], ~str_replace(.x, ":$", ""))  %>%            # Remove trailing :
-    select_if(~!all(is.na(.))) %>%       # remove empty columns
-    select(-gb_sequence)                 # remove gb_sequence
+      eukribo <- tbl(pr2_db_con, "eukribo_v2") %>%
+        select(
+          genbank_accession = gb_accession,
+          eukribo_UniEuk_taxonomy_string,
+          eukribo_V4,
+          eukribo_V9
+        ) %>%
+        collect()
+  }
 
   db_disconnect(pr2_db_con)
 
+  # Read pr2_taxonomy
+
+  pr2_taxonomy <- pr2_taxo_full_read(
+    taxo_levels_number = taxo_levels_number,
+    trait_types = trait_types
+  )
+
+  # Join the tables and keep only sequences that are not removed
+
+  pr2 <- pr2_main %>%
+    left_join(
+      pr2_taxonomy,
+      by = join_by(taxo_id == taxo_id),
+      multiple = "all"
+    ) %>%
+    left_join(pr2_seq)
+
+  if (keep_all_fields) {  # If all fields
+      pr2 <- pr2 |>
+        left_join(pr2_metadata, multiple = "all") %>%
+        left_join(pr2_countries, multiple = "all") %>%
+        left_join(eukribo, multiple = "all") %>%
+        left_join(pr2_assign_bayes) %>%
+        left_join(pr2_assign_silva)
+  }
+
+  pr2 <- pr2 |>
+    relocate(!!taxo_levels[[taxo_levels_number]], .after = pr2_accession) %>%
+    mutate(
+      organelle_code = case_when(
+        (organelle == "nucleus" | is.na(organelle)) ~ "",
+        TRUE ~ str_sub(organelle, 1, 4)
+      )
+    ) %>%
+    mutate_at(
+      taxo_levels[[taxo_levels_number]],
+      ~ str_c(.x, organelle_code, sep = ":")
+    ) %>% # Add the organelle at end of taxo
+    mutate_at(
+      taxo_levels[[taxo_levels_number]],
+      ~ str_replace(.x, ":$", "")
+    ) %>% # Remove trailing :
+    select_if(~ !all(is.na(.))) %>% # remove empty columns
+    select(
+      -contains("-gb_sequence"),
+      -contains("seq_id"),
+      -contains("added_"),
+      -contains("edited_")
+    ) # remove un necessary fields
+
+  pr2_missing_taxonomy <- pr2 |>
+    filter(!is.na(taxo_id),
+           is.na(domain)) |>
+    select(taxo_id) |>
+    distinct() |>
+    arrange(taxo_id)
+
+  print("PR2 species missing taxonomy")
+  print(pr2_missing_taxonomy)
+
+  if (keep_only_released_records) {
+    pr2 <- pr2 %>%
+      filter(is.na(removed_version)) %>%
+      filter(is.na(quarantined_version)) %>%
+      filter(!is.na(species)) %>%
+      select(-contains("chimera")) %>%
+      select(-contains("bayes")) %>%
+      select(-contains("boot")) %>%
+      select_if(~ !all(is.na(.))) # remove empty columns
+  }
 
   return(pr2)
-
 }
 
 # pr2_taxo_read -------------------------------------------------------
@@ -160,22 +346,99 @@ pr2_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
 #' @md
 #'
 pr2_taxo_read <- function() {
-
   print("Using pr2_google")
 
-
-# Read the PR2 full tables including removed records
+  # Read the PR2 full tables including removed records
   pr2_db_con <- db_connect(db_info("pr2_google"))
 
+  print("after connect")
+
   pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
-    filter (is.na(taxo_removed_version))%>%
+    filter(is.na(taxo_removed_version)) %>%
     collect() %>%
     select(-contains("removed"))
 
   db_disconnect(pr2_db_con)
 
   return(pr2_taxo)
+}
 
+# pr2_taxo_full_read -------------------------------------------------------
+#' @title Reads the PR2 taxonomic database into a data frame with WORMS, GBIF and traits information
+#' @description
+#' The database access codes is obtained with the function db_info("pr2_google").
+#'
+#' **Important**: This gets the current taxonomic  database and does not include taxa that have been removed.
+#' @return
+#' A data frame
+#' @examples
+#' pr2_taxo <- pr2_taxo_read(9, c("mixoplankton"))
+#' @export
+#' @md
+#'
+pr2_taxo_full_read <- function(
+  taxo_levels_number = 9,
+  trait_types = c("mixoplankton")
+) {
+  print("Using pr2_google")
+
+  # Read the PR2 full tables including removed records
+  pr2_db_con <- db_connect(db_info("pr2_google"))
+
+  print("after connect")
+
+  pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
+    filter(is.na(taxo_removed_version)) %>%
+    collect() %>%
+    select(-contains("removed"))
+
+  # print("after taxo")
+
+  pr2_traits <- pr2_traits_merge(
+    trait_types = trait_types,
+    taxo_levels_number = taxo_levels_number
+  ) %>%
+    select(species, any_of(trait_types))
+
+  # print("after pr2_traits")
+
+  worms_taxo <- tbl(pr2_db_con, "taxonomy_worms") %>%
+    filter(status == "accepted") %>%
+    select(
+      worms_id = AphiaID,
+      species = scientificname,
+      worms_marine = isMarine,
+      worms_brackish = isBrackish,
+      worms_freshwater = isFreshwater,
+      worms_terrestrial = isTerrestrial
+    ) %>%
+    collect() %>%
+    mutate(species = str_replace(species, " ", "_")) %>%
+    dplyr::distinct(species, .keep_all = TRUE)
+
+  gbif_taxo <- tbl(pr2_db_con, "taxonomy_gbif") |>
+    filter(!is.na(usageKey)) |>
+    select(species, gbif_id = usageKey) %>%
+    collect() %>%
+    dplyr::distinct(species, .keep_all = TRUE)
+
+  # print("after worms")
+
+  pr2_taxo <- pr2_taxo %>%
+    left_join(pr2_traits) %>%
+    left_join(worms_taxo) |>
+    left_join(gbif_taxo) |>
+    select(
+      taxo_id,
+      domain:species,
+      any_of(trait_types),
+      contains("worms"),
+      contains("gbif")
+    )
+
+  db_disconnect(pr2_db_con)
+
+  return(pr2_taxo)
 }
 
 # pr2_traits_read -------------------------------------------------------
@@ -192,9 +455,7 @@ pr2_taxo_read <- function() {
 #' @md
 #'
 pr2_traits_read <- function() {
-
   print("Using pr2_google")
-
 
   # Read the PR2 full table including removed records
   pr2_db_con <- db_connect(db_info("pr2_google"))
@@ -205,7 +466,6 @@ pr2_traits_read <- function() {
   db_disconnect(pr2_db_con)
 
   return(pr2_traits)
-
 }
 
 # pr2_traits_merge -------------------------------------------------------
@@ -221,31 +481,75 @@ pr2_traits_read <- function() {
 #' @return
 #' A data frame
 #' @examples
-#' pr2_taxo_traits <- pr2_traits_merge(trait_types = c("mixotrophy", "ecological_function"), taxo_levels_number = 9, debug = TRUE)
+#' pr2_taxo_traits <- pr2_traits_merge(trait_types = c("mixoplankton", "ecological_function", "HAB_species"), taxo_levels_number = 9, debug = TRUE)
 #' @export
 #' @md
 #'
-pr2_traits_merge <- function(trait_types = c("mixoplankton"),
-                             taxo_levels_number = 9,
-                             debug = FALSE,
-                             debug_file = here::here("tests", "testthat", "output", "pr2_traits_species_duplicated.xlsx")) {
+pr2_traits_merge <- function(
+  trait_types = c("mixoplankton"),
+  taxo_levels_number = 9,
+  debug = FALSE,
+  debug_file = here::here(
+    "tests",
+    "testthat",
+    "output",
+    "pr2_traits_species_duplicated.xlsx"
+  )
+) {
+  # Function to merge taxonomy and traits at a taxo single level  -----------------------------------------------
 
-    # Function to merge taxonomy and traits at a taxo single level  -----------------------------------------------
+  pr2_traits_merge_one <- function(pr2_taxonomy, pr2_traits, taxon_level) {
+    pr2_traits_one_level <- filter(pr2_traits, taxon_level == taxon_level)
 
-    pr2_traits_merge_one <- function(pr2_taxonomy, pr2_traits, taxon_level) {
-      pr2_traits_one_level <- filter(pr2_traits, taxon_level == taxon_level)
-
-      if (taxon_level == "species") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("species" = "taxon_name")))
-      if (taxon_level == "genus") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("genus" = "taxon_name")))
-      if (taxon_level == "family") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("family" = "taxon_name")))
-      if (taxon_level == "order") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("order" = "taxon_name")))
-      if (taxon_level == "class") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("class" = "taxon_name")))
-      if (taxon_level == "subdivision") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("subdivision" = "taxon_name")))
-      if (taxon_level == "division") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("division" = "taxon_name")))
-      if (taxon_level == "supergroup") return(inner_join(pr2_taxonomy, pr2_traits_one_level, by = c("supergroup" = "taxon_name")))
-
-    }
-
+    if (taxon_level == "species")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("species" = "taxon_name")
+      ))
+    if (taxon_level == "genus")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("genus" = "taxon_name")
+      ))
+    if (taxon_level == "family")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("family" = "taxon_name")
+      ))
+    if (taxon_level == "order")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("order" = "taxon_name")
+      ))
+    if (taxon_level == "class")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("class" = "taxon_name")
+      ))
+    if (taxon_level == "subdivision")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("subdivision" = "taxon_name")
+      ))
+    if (taxon_level == "division")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("division" = "taxon_name")
+      ))
+    if (taxon_level == "supergroup")
+      return(inner_join(
+        pr2_taxonomy,
+        pr2_traits_one_level,
+        by = c("supergroup" = "taxon_name")
+      ))
+  }
 
   taxon_levels <- taxo_levels[[taxo_levels_number]]
 
@@ -268,7 +572,6 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
   pr2_merged <- list()
 
   for (one_trait_type in trait_types) {
-
     print(glue::glue("Trait type: {one_trait_type} \n"))
 
     pr2_merged_list <- list()
@@ -276,11 +579,10 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
     pr2_taxonomy_filtered <- pr2_taxonomy
 
     pr2_traits_filtered <- pr2_traits %>%
-    filter(trait_type == one_trait_type) %>%
-    select(taxon_name, taxon_level, trait_value)
+      filter(trait_type == one_trait_type) %>%
+      select(taxon_name, taxon_level, trait_value)
 
     # Check if any taxon repeeated
-
 
     taxa_repeated <- pr2_traits_filtered %>%
       count(taxon_name) %>%
@@ -290,25 +592,28 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
     print(taxa_repeated)
 
     # This is from manually input allocation - must go from species to domain
-    for (taxon_level in  rev(taxon_levels)) {
-
-    print(glue::glue("Level {taxon_level} \n"))
+    for (taxon_level in rev(taxon_levels)) {
+      print(glue::glue("Level {taxon_level} \n"))
 
       # Assign trophic mode for PR2 taxa for a given level
-      pr2_merged_list[[taxon_level]] <- pr2_traits_merge_one (pr2_taxonomy_filtered, pr2_traits_filtered, taxon_level)
+      pr2_merged_list[[taxon_level]] <- pr2_traits_merge_one(
+        pr2_taxonomy_filtered,
+        pr2_traits_filtered,
+        taxon_level
+      )
 
       # Remove from PR2 taxa that have been assigned
       pr2_taxonomy_filtered <- pr2_taxonomy_filtered %>%
         filter(!(species %in% pr2_merged_list[[taxon_level]]$species))
-
-
     }
-
 
     #  Merge and save ---------------------------------------------------------
 
-    pr2_merged[[one_trait_type]] <- purrr::reduce(pr2_merged_list, bind_rows) %>%
-      rename_with (~ one_trait_type, trait_value) %>%
+    pr2_merged[[one_trait_type]] <- purrr::reduce(
+      pr2_merged_list,
+      bind_rows
+    ) %>%
+      rename_with(~one_trait_type, trait_value) %>%
       bind_rows(pr2_taxonomy_filtered) %>%
       arrange(across(any_of(rev(taxon_levels)))) %>%
       select(-taxon_level)
@@ -321,11 +626,11 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
     add_count(species) %>%
     filter(n > 1)
 
-  if (debug & nrow(species_duplicated) > 0) rio::export(species_duplicated, debug_file)
+  if (debug & nrow(species_duplicated) > 0)
+    rio::export(species_duplicated, debug_file)
 
   print("Species duplicated: ")
   print(species_duplicated)
-
 
   # sheets <- list("pr2_taxo merged" = pr2_merged,
   #                "pr2_tax without traits" = pr2_taxonomy)
@@ -333,7 +638,6 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
   # export(sheets, file_pr2_taxo_traits, overwrite = TRUE)
 
   return(pr2_taxo_traits)
-
 }
 
 # pr2_colors_read -------------------------------------------------------
@@ -350,9 +654,7 @@ pr2_traits_merge <- function(trait_types = c("mixoplankton"),
 #' @md
 #'
 pr2_colors_read <- function() {
-
   print("Using pr2_google")
-
 
   # Read the PR2 full tables including removed records
   pr2_db_con <- db_connect(db_info("pr2_google"))
@@ -363,7 +665,6 @@ pr2_colors_read <- function() {
   db_disconnect(pr2_db_con)
 
   return(pr2_colors)
-
 }
 
 
@@ -381,15 +682,19 @@ pr2_colors_read <- function() {
 #' @export
 #' @md
 pr2_sequence_label <- function(sample_type, strain, clone, specimen_voucher) {
-
   # Note : must use str_replace_na() to make sure that no value is NA, because if a string is NA then str_c will return NA
-    sequence_label <- case_when(is.na(sample_type) ~ "",
-                      sample_type == "culture" ~ str_c("strain_",str_replace_na(strain, replacement="")),
-                      sample_type == "environmental" ~ str_c("clone_",str_replace_na(clone, replacement="")),
-                      sample_type == "isolate" ~ "",
-                      sample_type == "specimen" ~ str_c("specimen_",str_replace_na(specimen_voucher, replacement="")),
-                      TRUE ~ "")
-    return(sequence_label)
+  sequence_label <- case_when(
+    is.na(sample_type) ~ "",
+    sample_type == "culture" ~
+      str_c("strain_", str_replace_na(strain, replacement = "")),
+    sample_type == "environmental" ~
+      str_c("clone_", str_replace_na(clone, replacement = "")),
+    sample_type == "isolate" ~ "",
+    sample_type == "specimen" ~
+      str_c("specimen_", str_replace_na(specimen_voucher, replacement = "")),
+    TRUE ~ ""
+  )
+  return(sequence_label)
 }
 
 # pr2_export -----------------------------------------
@@ -416,195 +721,313 @@ pr2_sequence_label <- function(sample_type, strain, clone, specimen_voucher) {
 #' pr2_export(pr2, "C:/Daniel/myfile.fas", "fasta", "mothur", 9)
 #' @export
 #' @md
-pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fasta_taxo_long", taxo_levels_number = 9 ) {
+pr2_export <- function(
+  pr2_select,
+  file_name,
+  file_type = "fasta",
+  file_format = "fasta_taxo_long",
+  taxo_levels_number = 9
+) {
   # These lines are for testing and should be commented out
-    # pr2 <- pr2_env_not_updated
-    # file_name <- "pr2_env_not_updated.fasta"
-    # level_select="kingdom"
-    # taxo_select="Eukaryota"
-    # file_type="fasta"
-    # file_format="fasta_taxo_long"
+  # pr2 <- pr2_env_not_updated
+  # file_name <- "pr2_env_not_updated.fasta"
+  # level_select="kingdom"
+  # taxo_select="Eukaryota"
+  # file_type="fasta"
+  # file_format="fasta_taxo_long"
 
-  pr2_seq_out <- Biostrings::DNAStringSet(pr2_select$sequence)  # Store the sequence in a  DNAString - not used anymore
+  pr2_seq_out <- Biostrings::DNAStringSet(pr2_select$sequence) # Store the sequence in a  DNAString - not used anymore
 
   # Use sequinr (sequences are stored as list)
   # pr2_seq_out <- as.list(pr2_select$sequence)
 
   # Remove any space from Strain, Clone name, Specimen_voucher
   pr2_select <- pr2_select %>%
-     mutate (gb_strain = str_replace_all(gb_strain, " ", "_"),
-             gb_clone = str_replace_all(gb_clone, " ", "_"),
-             gb_specimen_voucher = str_replace_all(gb_specimen_voucher, " ", "_"),
-              # Create a nice label based on the type of sequence
-              # if the organelle is empty replace by empty string to avoid NA...
-             sequence_label = pr2_sequence_label (pr2_sample_type,
-                                                  gb_strain,
-                                                  gb_clone,
-                                                  gb_specimen_voucher),
-             organelle = str_replace_na(organelle, replacement = ""),
-             name_taxo_short = str_c(pr2_accession,
-                              gene,
-                              organelle,
-                              sequence_label,
-                              species,
-                              sep="|"),
-             name_dada2_species = str_c(genbank_accession,
-                                      str_replace(species,"_"," "),
-                                      sep=" ")
-     )
+    mutate(
+      gb_strain = str_replace_all(gb_strain, " ", "_"),
+      gb_clone = str_replace_all(gb_clone, " ", "_"),
+      gb_specimen_voucher = str_replace_all(gb_specimen_voucher, " ", "_"),
+      # Create a nice label based on the type of sequence
+      # if the organelle is empty replace by empty string to avoid NA...
+      sequence_label = pr2_sequence_label(
+        pr2_sample_type,
+        gb_strain,
+        gb_clone,
+        gb_specimen_voucher
+      ),
+      organelle = str_replace_na(organelle, replacement = ""),
+      name_taxo_short = str_c(
+        pr2_accession,
+        gene,
+        organelle,
+        sequence_label,
+        species,
+        sep = "|"
+      ),
+      name_dada2_species = str_c(
+        genbank_accession,
+        str_replace(species, "_", " "),
+        sep = " "
+      )
+    )
 
-
-    if (taxo_levels_number == 9) {
-      pr2_select <- pr2_select %>%
-          mutate ( name_UTAX = str_c(pr2_accession,
-                                     ";tax=k:", domain,
-                                     ",d:", supergroup,
-                                     ",p:", str_c(division,"-", subdivision),
-                                     ",c:", class,
-                                     ",o:", order,
-                                     ",f:", family,
-                                     ",g:", genus,
-                                     ",s:", species,
-                                    sep=""),
-                   name_taxo_long = str_c(pr2_accession,
-                                    gene,
-                                    organelle,
-                                    sequence_label,
-                                    domain,
-                                    supergroup,
-                                    division,
-                                    subdivision,
-                                    class,
-                                    order,
-                                    family,
-                                    genus,
-                                    species,
-                                    sep="|"),
-                   name_dada2 = str_c(domain,
-                                    supergroup,
-                                    division,
-                                    subdivision,
-                                    class,
-                                    order,
-                                    family,
-                                    genus,
-                                    species,
-                                    "",
-                                    sep=";")
-                   )
-    } else {
-      pr2_select <- pr2_select %>%
-          mutate ( name_UTAX = str_c(pr2_accession,";tax=k:",
-                                    kingdom,",d:",
-                                    supergroup,",p:",
-                                    division,",c:",
-                                    class,",o:",
-                                    order,",f:",
-                                    family,",g:",
-                                    genus,",s:",
-                                    species,
-                                    sep=""),
-                   name_taxo_long = str_c(pr2_accession,
-                                    gene,
-                                    organelle,
-                                    sequence_label,
-                                    kingdom,
-                                    supergroup,
-                                    division,
-                                    class,
-                                    order,
-                                    family,
-                                    genus,
-                                    species,
-                                    sep="|"),
-                   name_dada2 = str_c(kingdom,
-                                    supergroup,
-                                    division,
-                                    class,
-                                    order,
-                                    family,
-                                    genus,
-                                    species,
-                                    "",
-                                    sep=";")
-                   )
+  if (taxo_levels_number == 9) {
+    pr2_select <- pr2_select %>%
+      mutate(
+        name_UTAX = str_c(
+          pr2_accession,
+          ";tax=k:",
+          domain,
+          ",d:",
+          supergroup,
+          ",p:",
+          str_c(division, "-", subdivision),
+          ",c:",
+          class,
+          ",o:",
+          order,
+          ",f:",
+          family,
+          ",g:",
+          genus,
+          ",s:",
+          species,
+          sep = ""
+        ),
+        name_taxo_long = str_c(
+          pr2_accession,
+          gene,
+          organelle,
+          sequence_label,
+          domain,
+          supergroup,
+          division,
+          subdivision,
+          class,
+          order,
+          family,
+          genus,
+          species,
+          sep = "|"
+        ),
+        name_dada2 = str_c(
+          domain,
+          supergroup,
+          division,
+          subdivision,
+          class,
+          order,
+          family,
+          genus,
+          species,
+          "",
+          sep = ";"
+        )
+      )
+  } else {
+    pr2_select <- pr2_select %>%
+      mutate(
+        name_UTAX = str_c(
+          pr2_accession,
+          ";tax=k:",
+          kingdom,
+          ",d:",
+          supergroup,
+          ",p:",
+          division,
+          ",c:",
+          class,
+          ",o:",
+          order,
+          ",f:",
+          family,
+          ",g:",
+          genus,
+          ",s:",
+          species,
+          sep = ""
+        ),
+        name_taxo_long = str_c(
+          pr2_accession,
+          gene,
+          organelle,
+          sequence_label,
+          kingdom,
+          supergroup,
+          division,
+          class,
+          order,
+          family,
+          genus,
+          species,
+          sep = "|"
+        ),
+        name_dada2 = str_c(
+          kingdom,
+          supergroup,
+          division,
+          class,
+          order,
+          family,
+          genus,
+          species,
+          "",
+          sep = ";"
+        )
+      )
   }
 
-  switch(file_type,
+  switch(
+    file_type,
 
     fasta = {
-
-    switch(file_format,
-         UTAX =  {names(pr2_seq_out) <- pr2_select$name_UTAX},
-         fasta_taxo_short= {names(pr2_seq_out) <- pr2_select$name_taxo_short},
-         fasta_taxo_long= {names(pr2_seq_out) <- pr2_select$name_taxo_long},
-         dada2= {names(pr2_seq_out) <- pr2_select$name_dada2},
-         dada2_species= {names(pr2_seq_out) <- pr2_select$name_dada2_species},
-         mothur= {names(pr2_seq_out) <- pr2_select$pr2_accession
-         }  )
-  # When using DNA strings only LF added (Unix convention)
-  # Set width to max possible so that no carriage return (causes problems with dada2)
-    Biostrings::writeXStringSet(pr2_seq_out, file_name, compress=TRUE, width = 20000)
-  # Convert to dos
-    # unix2dos(file_name)
-    # next line is when using seqinr
-    # write.fasta(sequences=pr2_seq_out, names=names(pr2_seq_out), file.out=file_name, as.string = TRUE)
+      switch(
+        file_format,
+        UTAX = {
+          names(pr2_seq_out) <- pr2_select$name_UTAX
+        },
+        fasta_taxo_short = {
+          names(pr2_seq_out) <- pr2_select$name_taxo_short
+        },
+        fasta_taxo_long = {
+          names(pr2_seq_out) <- pr2_select$name_taxo_long
+        },
+        dada2 = {
+          names(pr2_seq_out) <- pr2_select$name_dada2
+        },
+        dada2_species = {
+          names(pr2_seq_out) <- pr2_select$name_dada2_species
+        },
+        mothur = {
+          names(pr2_seq_out) <- pr2_select$pr2_accession
+        }
+      )
+      # When using DNA strings only LF added (Unix convention)
+      # Set width to max possible so that no carriage return (causes problems with dada2)
+      Biostrings::writeXStringSet(
+        pr2_seq_out,
+        file_name,
+        compress = TRUE,
+        width = 20000
+      )
+      # Convert to dos
+      # unix2dos(file_name)
+      # next line is when using seqinr
+      # write.fasta(sequences=pr2_seq_out, names=names(pr2_seq_out), file.out=file_name, as.string = TRUE)
     },
     taxo = {
       # mothur taxonomy file terminates with semi column at end of line
       if (taxo_levels_number == 9) {
-            pr2_select <- pr2_select %>%
-              mutate(taxo_string = str_c(domain, supergroup, division, subdivision,
-                                         class, order, family, genus, species,"",
-                                         sep=";") )
-            }
-      else {
         pr2_select <- pr2_select %>%
-          mutate(taxo_string = str_c(kingdom, supergroup, division,
-                                     class, order, family, genus, species,"",
-                                     sep=";") )
-        }
+          mutate(
+            taxo_string = str_c(
+              domain,
+              supergroup,
+              division,
+              subdivision,
+              class,
+              order,
+              family,
+              genus,
+              species,
+              "",
+              sep = ";"
+            )
+          )
+      } else {
+        pr2_select <- pr2_select %>%
+          mutate(
+            taxo_string = str_c(
+              kingdom,
+              supergroup,
+              division,
+              class,
+              order,
+              family,
+              genus,
+              species,
+              "",
+              sep = ";"
+            )
+          )
+      }
 
       pr2_select_taxo <- pr2_select %>%
         select(pr2_accession, taxo_string)
 
-      write.table(pr2_select_taxo, gzfile(file_name),
-                  col.names = FALSE, row.names=FALSE,
-                  sep="\t", quote= FALSE)
-
+      write.table(
+        pr2_select_taxo,
+        gzfile(file_name),
+        col.names = FALSE,
+        row.names = FALSE,
+        sep = "\t",
+        quote = FALSE
+      )
     },
     metadata = {
-      pr2_select_metadata <- pr2_select %>% select(pr2_accession,
-                                                   genbank_accession,
-                                                   starts_with("gb_"),
-                                                   starts_with("pr2_"),
-                                                   starts_with("eukref_"),
-                                                   starts_with("silva_"),
-                                                   pubmed_id,
-                                                   metadata_remark)
+      pr2_select_metadata <- pr2_select %>%
+        select(
+          pr2_accession,
+          genbank_accession,
+          starts_with("gb_"),
+          starts_with("pr2_"),
+          starts_with("eukref_"),
+          starts_with("silva_"),
+          pubmed_id,
+          metadata_remark
+        )
       # write.table(pr2_select_metadata, gzfile(file_name),
       #             col.names = TRUE, row.names=FALSE,
       #             sep="\t", quote= FALSE, na="")
       write_tsv(pr2_select_metadata, gzfile(file_name))
     },
     merged = {
-      write.table(pr2_select, gzfile(file_name),
-                  col.names = TRUE, row.names=FALSE,
-                  sep="\t", quote= FALSE, na="")
+      write.table(
+        pr2_select,
+        gzfile(file_name),
+        col.names = TRUE,
+        row.names = FALSE,
+        sep = "\t",
+        quote = FALSE,
+        na = ""
+      )
     },
     merged_excel = {
-
       if (taxo_levels_number == 9) {
-      pr2_select <- pr2_select %>%
-        arrange(domain, supergroup, division, subdivision, class, order, family, genus, species)
+        pr2_select <- pr2_select %>%
+          arrange(
+            domain,
+            supergroup,
+            division,
+            subdivision,
+            class,
+            order,
+            family,
+            genus,
+            species
+          )
       } else {
-      pr2_select <- pr2_select %>%
-        arrange(kingdom, supergroup, division, class, order, family, genus, species)
+        pr2_select <- pr2_select %>%
+          arrange(
+            kingdom,
+            supergroup,
+            division,
+            class,
+            order,
+            family,
+            genus,
+            species
+          )
       }
 
-      pr2_select %>% select(-starts_with("name")) %>%
-        openxlsx::write.xlsx(file_name, zoom = 90, firstRow = TRUE, firstCol = TRUE)
-
+      pr2_select %>%
+        select(-starts_with("name")) %>%
+        openxlsx::write.xlsx(
+          file_name,
+          zoom = 90,
+          firstRow = TRUE,
+          firstCol = TRUE
+        )
     }
   )
 }
@@ -622,7 +1045,7 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
 #' * pr2_countries
 #' * pr2_primers
 #' * pr2_primer_sets
-#' * worms_taxonomy
+#' * taxonomy_worms
 #' * eukribo_v2
 #' * pr2_taxonomy_5.0_8_levels
 #' @param file_name character - full path of file where to save
@@ -634,46 +1057,50 @@ pr2_export <- function(pr2_select, file_name, file_type="fasta", file_format="fa
 #' @md
 
 pr2_export_sqlite <- function(file_name) {
-
   export_table_sqlite <- function(table_name, indexes = list()) {
-
     table <- tbl(pr2_db_con, table_name) |>
       collect()
 
-    copy_to(sqlite_db_con, table, name = table_name, indexes= indexes,
-            temporary=FALSE, overwrite = TRUE)
-
+    copy_to(
+      sqlite_db_con,
+      table,
+      name = table_name,
+      indexes = indexes,
+      temporary = FALSE,
+      overwrite = TRUE
+    )
   }
-
-
 
   pr2_db_con <- db_connect(db_info("pr2_google"))
   sqlite_db_con <- db_connect_sqlite(file_name)
 
   # Read the PR2 full tables including removed records
 
-  export_table_sqlite ("pr2_main",  list("pr2_accession", "genbank_accession", "species") )
-  export_table_sqlite ("pr2_taxonomy",  list("species") )
-  export_table_sqlite ("pr2_sequences",  list("pr2_accession") )
-  export_table_sqlite ("pr2_metadata",  list("genbank_accession") )
-  export_table_sqlite ("pr2_countries",  list("pr2_country") )
-  export_table_sqlite ("pr2_assign_silva",  list("pr2_accession") )
-  export_table_sqlite ("pr2_assign_bayes",  list("pr2_accession") )
-  export_table_sqlite ("pr2_traits",  list("trait_id") )
-  export_table_sqlite ("worms_taxonomy",  list("AphiaID") )
-  export_table_sqlite ("eukribo_v2",  list("gb_accession") )
-  export_table_sqlite ("pr2_primers",  list("primer_id") )
-  export_table_sqlite ("pr2_primer_sets",  list("primer_set_id") )
+  export_table_sqlite(
+    "pr2_main",
+    list("pr2_accession", "genbank_accession", "species")
+  )
+  export_table_sqlite("pr2_taxonomy", list("taxo_id"))
+  export_table_sqlite("pr2_sequences", list("pr2_accession"))
+  export_table_sqlite("pr2_metadata", list("genbank_accession"))
+  export_table_sqlite("pr2_countries", list("pr2_country"))
+  export_table_sqlite("pr2_assign_silva", list("pr2_accession"))
+  export_table_sqlite("pr2_assign_bayes", list("pr2_accession"))
+  export_table_sqlite("pr2_traits", list("trait_id"))
+  export_table_sqlite("taxonomy_worms", list("AphiaID"))
+  export_table_sqlite("taxonomy_gbif", list("usageKey"))
+  export_table_sqlite("eukribo_v2", list("gb_accession"))
+  export_table_sqlite("pr2_primers", list("primer_id"))
+  export_table_sqlite("pr2_primer_sets", list("primer_set_id"))
 
   db_disconnect(pr2_db_con)
   db_disconnect(sqlite_db_con)
 
   # Compress sqlite file
 
-  R.utils::gzip(file_name, overwrite = TRUE, remove=TRUE)
+  R.utils::gzip(file_name, overwrite = TRUE, remove = TRUE)
 
   return(TRUE)
-
 }
 
 # pr2_export Duckdb -----------------------------------------
@@ -689,7 +1116,7 @@ pr2_export_sqlite <- function(file_name) {
 #' * pr2_countries
 #' * pr2_primers
 #' * pr2_primer_sets
-#' * worms_taxonomy
+#' * taxonomy_worms
 #' * eukribo_v2
 #' * pr2_taxonomy_5.0_8_levels
 #' NOTE: duckdb file size is same as SQLite but cannot be read with DBeaver
@@ -702,39 +1129,46 @@ pr2_export_sqlite <- function(file_name) {
 #' @export
 #' @md
 
-  pr2_export_duckdb <- function(file_name) {
-
+pr2_export_duckdb <- function(file_name) {
   # Function to export each table to duckdb
 
   export_table_duckdb <- function(table_name, indexes = list()) {
-      # indexes are not used for the time being
+    # indexes are not used for the time being
 
-      # Read table from Google
-      table <- tbl(pr2_db_con, table_name) |>
-        collect()
+    # Read table from Google
+    table <- tbl(pr2_db_con, table_name) |>
+      collect()
 
-      # Export table to duckdb
-      duckdb::dbWriteTable(duckdb_con, name = table_name, value = table, overwrite = TRUE)
-
-    }
+    # Export table to duckdb
+    duckdb::dbWriteTable(
+      duckdb_con,
+      name = table_name,
+      value = table,
+      overwrite = TRUE
+    )
+  }
 
   # Connect to databases
   pr2_db_con <- db_connect(db_info("pr2_google"))
   duckdb_con <- dbConnect(duckdb::duckdb(dbdir = file_name))
 
   # Ewport to duckdb
-  export_table_duckdb ("pr2_main",  list("pr2_accession", "genbank_accession", "species") )
-  export_table_duckdb ("pr2_taxonomy",  list("species") )
-  export_table_duckdb ("pr2_sequences",  list("pr2_accession") )
-  export_table_duckdb ("pr2_metadata",  list("genbank_accession") )
-  export_table_duckdb ("pr2_countries",  list("pr2_country") )
-  export_table_duckdb ("pr2_assign_silva",  list("pr2_accession") )
-  export_table_duckdb ("pr2_assign_bayes",  list("pr2_accession") )
-  export_table_duckdb ("pr2_traits",  list("trait_id") )
-  export_table_duckdb ("worms_taxonomy",  list("AphiaID") )
-  export_table_duckdb ("eukribo_v2",  list("gb_accession") )
-  export_table_duckdb ("pr2_primers",  list("primer_id") )
-  export_table_duckdb ("pr2_primer_sets",  list("primer_set_id") )
+  export_table_duckdb(
+    "pr2_main",
+    list("pr2_accession", "genbank_accession", "species")
+  )
+  export_table_duckdb("pr2_taxonomy", list("species"))
+  export_table_duckdb("pr2_sequences", list("pr2_accession"))
+  export_table_duckdb("pr2_metadata", list("genbank_accession"))
+  export_table_duckdb("pr2_countries", list("pr2_country"))
+  export_table_duckdb("pr2_assign_silva", list("pr2_accession"))
+  export_table_duckdb("pr2_assign_bayes", list("pr2_accession"))
+  export_table_duckdb("pr2_traits", list("trait_id"))
+  export_table_duckdb("taxonomy_worms", list("AphiaID"))
+  export_table_duckdb("taxonomy_gbif", list("usageKey"))
+  export_table_duckdb("eukribo_v2", list("gb_accession"))
+  export_table_duckdb("pr2_primers", list("primer_id"))
+  export_table_duckdb("pr2_primer_sets", list("primer_set_id"))
 
   # Disonnect from databases
   db_disconnect(pr2_db_con)
@@ -742,12 +1176,10 @@ pr2_export_sqlite <- function(file_name) {
 
   # Compress duckdb file
 
-  R.utils::gzip(file_name, overwrite = TRUE, remove=TRUE)
-
+  R.utils::gzip(file_name, overwrite = TRUE, remove = FALSE)
 
   return(TRUE)
-
-  }
+}
 
 
 # pr2_export_emu -------------------------------------------------------
@@ -765,69 +1197,296 @@ pr2_export_sqlite <- function(file_name) {
 #' @export
 #' @md
 #'
-pr2_export_emu <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
-                           version = "5.0.1") {
-
-  version_directory = str_c(pr2_directory, "versions/",version,"/")
+pr2_export_emu <- function(
+  pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
+  version = "5.1.0"
+) {
+  version_directory = str_c(pr2_directory, "versions/", version, "/")
 
   # Files for export
   file_head <- str_c(version_directory, "pr2_version_", version)
 
-  file_emu_fasta <- str_c(file_head,"_emu", ".fasta")
-  file_emu_map <- str_c(file_head,"_emu_map", ".tsv")
-  file_emu_taxo <- str_c(file_head,"_emu_taxo", ".tsv")
+  file_emu_fasta <- str_c(file_head, "_emu", ".fasta")
+  file_emu_map <- str_c(file_head, "_emu_map", ".tsv")
+  file_emu_taxo <- str_c(file_head, "_emu_taxo", ".tsv")
 
   print("Using pr2_google")
 
-  # Info for the Google dabase
-  pr2_db <- db_info("pr2_google")
+  pr2_main <- pr2_read(keep_only_released_records = TRUE, keep_all_fields = FALSE)
 
-  pr2_db_con <- db_connect(pr2_db)
+  # version_short <- str_c("^",str_sub(pr2.env$version, 1, 3))
+  #
+  # pr2_updated <- pr2 %>%
+  #   filter( str_detect(removed_version, version_short) |
+  #           str_detect(edited_version, version_short)  |
+  #           str_detect(added_version, version_short),
+  #           !is.na(species))
 
-  pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
-    filter(is.na(removed_version),
-           is.na(quarantined_version),
-           !is.na(species)) |>
-    select(pr2_accession, species)  %>%
-    collect()
-
-
-  pr2_seq <- tbl(pr2_db_con, "pr2_sequences")|>
-    select(pr2_accession, sequence) %>%
-    collect()
-
-  pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
-    filter (is.na(taxo_removed_version)) %>%
-    select(tax_id=taxo_id, domain:species) |>
-    collect()
-
-  pr2_main <- pr2_main |>
-    left_join(pr2_taxo) |>
-    left_join(pr2_seq) |>
-    filter(!is.na(tax_id))
+  pr2_taxonomy <- pr2_main %>%
+    select(taxo_id, any_of(c(taxo_levels[[taxo_levels_number]]))) %>%
+    distinct() |>
+    arrange(across(any_of(taxo_levels[[taxo_levels_number]])))
 
   pr2_seq_out <- Biostrings::DNAStringSet(pr2_main$sequence)
   names(pr2_seq_out) <- pr2_main$pr2_accession
 
-  pr2_taxo <- pr2_main |>
-    select (tax_id, domain:genus, species) |>
-    distinct()
+  pr2_map <- pr2_main |>
+    select(pr2_accession, taxo_id)
 
-  pr2_main <- pr2_main |>
-    select(pr2_accession, tax_id)
+  # Info for the Google dabase
+  # pr2_db <- db_info("pr2_google")
+  #
+  # pr2_db_con <- db_connect(pr2_db)
+  #
+  # pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
+  #   filter(is.na(removed_version),
+  #          is.na(quarantined_version),
+  #          !is.na(species)) |>
+  #   select(pr2_accession, species)  %>%
+  #   collect()
+  #
+  #
+  #   pr2_seq <- tbl(pr2_db_con, "pr2_sequences")|>
+  #     select(pr2_accession, sequence) %>%
+  #     collect()
 
-  rio::export(pr2_main, file_emu_map, col.names = FALSE )
-  rio::export(pr2_taxo, file_emu_taxo, col.names = TRUE )
-  Biostrings::writeXStringSet(pr2_seq_out, file_emu_fasta,
-                              compress=FALSE, width = 80)
+  # pr2_taxo <- tbl(pr2_db_con, "pr2_taxonomy") %>%
+  #   filter (is.na(taxo_removed_version)) %>%
+  #   select(tax_id=taxo_id, domain:species) |>
+  #   collect()
 
+  # pr2_main <- pr2_main |>
+  #   left_join(pr2_taxo) |>
+  #   left_join(pr2_seq) |>
+  #   filter(!is.na(tax_id))
 
+  # pr2_taxo <- pr2_main |>
+  #   select (tax_id, domain:genus, species) |>
+  #   distinct()
+
+  # pr2_main <- pr2_main |>
+  #   select(pr2_accession, tax_id)
+
+  rio::export(pr2_map, file_emu_map, col.names = FALSE)
+  rio::export(pr2_taxonomy, file_emu_taxo, col.names = TRUE)
+  Biostrings::writeXStringSet(
+    pr2_seq_out,
+    file_emu_fasta,
+    compress = FALSE,
+    width = 80
+  )
 
   return(TRUE)
-
 }
 
+# pr2_export_gbif -------------------------------------------------------
+#' @title Export the PR2 taxonomy as a COLDP file for import in GBF
+#' @description
+#' Three files are exported
+#'
+#' @param pr2_directory Directory above the versions directory
+#' @param version PR2 version as character (e.g. 5.0.0)
+#'
+#' @return
+#' TRUE if successful
+#' @examples
+#' pr2 <- pr2_export_gbif()
+#' @export
+#' @md
+#'
+pr2_export_gbif <- function(
+  pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
+  version = "5.1.0",
+  test = FALSE
+) {
+  version_directory = str_c(pr2_directory, "versions/", version, "/")
 
+  # Files for export
+  file_head <- str_c(version_directory, "pr2_version_", version)
+
+  file_gbif_zip <- str_c(file_head, "_COLDP", ".zip")
+
+  file_gbif_xlsx <- str_c(version_directory, "NameUsage.xlsx")
+  file_gbif_tsv <- str_c(version_directory, "NameUsage.tsv")
+  file_gbif_yaml <- str_c(version_directory, "metadata.yaml")
+
+  # Define the ranks and create a parent-child relationship
+  pr2_ranks <- taxo_levels[[taxo_levels_number]]
+
+  pr2_taxonomy <- pr2_taxo_read() |>
+    filter(domain == "Eukaryota") |>
+    select(taxo_id, any_of(pr2_ranks))
+
+  if (test) pr2_taxonomy <- head(pr2_taxonomy, 1000)
+
+  # Create a function to get the scientific name - version 1.0
+  # This removes all "_"
+
+  # get_name <- function(rank, name) {
+  #   splitted <- str_split(name, "_")[[1]]
+  #   if (rank != "species" && !str_detect(splitted[length(splitted)], "^X+")) {
+  #     str_replace_all(name, "_", " ")
+  #   } else if (rank == "species" && splitted[length(splitted)] != "sp.") {
+  #     str_replace_all(name, "_", " ")
+  #   } else {
+  #     ""
+  #   }
+  # }
+
+  # Create a function to get the scientific name - version 2.0
+  # Do not replace the underscores in the rank names and only last underscore at species level
+
+  replace_last_underscore <- function(input_string, replacement = " ") {
+    # Find the last occurrence of "_"
+    last_underscore_pos <- str_locate_all(input_string, "_")[[1]]
+    if (nrow(last_underscore_pos) > 0) {
+      last_pos <- last_underscore_pos[nrow(last_underscore_pos), 1]
+
+      # Replace the last occurrence
+      output_string <- str_sub(input_string, 1, last_pos - 1) %>%
+        paste0(replacement, str_sub(input_string, last_pos + 1))
+      return(output_string)
+    } else {
+      # No underscore found, return the original string
+      return(input_string)
+    }
+  }
+
+  get_name <- function(rank, name) {
+    splitted <- str_split(name, "_")[[1]]
+    # Case 1 - Not species level and not _X -> just keep the name with _
+    if (rank != "species" && !str_detect(splitted[length(splitted)], "^X+")) {
+      #  str_replace_all(name, "_", " ")
+      name
+    } else if (rank == "species" && !str_detect(name, "_sp[.]")) {
+      replace_last_underscore(name)
+    } else {
+      ""
+    }
+  }
+
+  # Process the data and write to a new file
+  gbif <- pr2_taxonomy %>%
+    pivot_longer(
+      cols = all_of(pr2_ranks),
+      names_to = "rank",
+      values_to = "scientificName"
+    ) |>
+    mutate(
+      rank = str_replace(rank, "supergroup", "subdomain"),
+      rank = str_replace(rank, "division", "phylum"),
+      rank = str_replace(rank, "subdivision", "subphylum")
+    )
+
+  gbif$scientificName = purrr::map2_chr(
+    gbif$rank,
+    gbif$scientificName,
+    get_name
+  )
+
+  gbif <- gbif %>%
+    filter(scientificName != "") %>%
+    mutate(
+      ID = row_number(),
+      pr2_taxo_id = if_else(rank == "species", taxo_id, NA),
+      parent_name = if_else(rank == pr2_ranks[1], NA, lag(scientificName)),
+      parent_rank = if_else(rank == pr2_ranks[1], NA, lag(rank)),
+      status = "accepted"
+    ) %>%
+    select(
+      ID,
+      pr2_taxo_id,
+      parent_name,
+      parent_rank,
+      scientificName,
+      rank,
+      status
+    )
+
+  gbif_unique <- distinct(gbif, scientificName, rank, .keep_all = TRUE)
+
+  gbif_parents <- gbif_unique |>
+    select(parentID = ID, parent_name = scientificName, parent_rank = rank)
+
+  gbif_unique <- left_join(gbif_unique, gbif_parents) |>
+    relocate(parent_name, parent_rank, pr2_taxo_id, .after = last_col())
+
+  # Export data with 3 extra columns
+  rio::export(gbif_unique, file_gbif_xlsx)
+
+  # Export data for GBIF
+
+  gbif_unique <- gbif_unique |>
+    select(-parent_name, -parent_rank, -pr2_taxo_id)
+
+  rio::export(gbif_unique, file_gbif_tsv, col.names = TRUE)
+
+  # Create the metadata file
+  metadata <- list()
+
+  metadata$description <- "The PR2 database was initiated in 2010 in the frame of the BioMarks project. Its aim is to provide a reference database of carefully annotated 18S rRNA sequences using noine unique taxonomic fields (from domain to species).
+
+  It contains more than 220,000 sequences. A number of metadata fields are available for many sequences, including geo-localisation, whether it originates from a culture or a natural sample, host type etc… The annotation of PR2 is performed by experts from each taxonomic groups.
+
+  For the purpose of being compatible with GBIF structure the following changes in the taxonomic levels have been implemented:
+  - supergroup => subdomain
+  - division => phylum
+  - subdivision => subphylum
+
+  Also intermedaite ranks that are labelled as _X in PR2 have been removed.
+
+  The resulting structure reproduces taxonomic structure of PR2 but is not exactly similar since:
+  - PR2 contains intermedaite _X ranks
+  - PR2 does not allow for spaces in any of the rank names and replaces them by _ (underscore)
+  - Some issues in PR2 taxa names still need to be fixed."
+
+  metadata$issued <- as.character(Sys.Date())
+  metadata$version <- version
+
+  metadata$contact <- list()
+  metadata$contact$given <- "Daniel"
+  metadata$contact$family <- "Vaulot"
+  metadata$contact$email <- "vaulot@gmail.com"
+
+  metadata$creator <- list()
+  metadata$creator$given <- "Laure"
+  metadata$creator$family <- "Guillou"
+  metadata$creator$orcid <- "0000-0003-1032-7958"
+
+  metadata$editor <- list()
+  metadata$editor[[1]] <- list()
+  metadata$editor[[1]]$given <- "Daniel"
+  metadata$editor[[1]]$family <- "Vaulot"
+  metadata$editor[[1]]$orcid <- "0000-0002-0717-5685"
+
+  metadata$editor[[2]] <- list()
+  metadata$editor[[2]]$given <- "Javier"
+  metadata$editor[[2]]$family <- "del Campo"
+  metadata$editor[[2]]$orcid <- "0000-0002-5292-1421"
+
+  metadata$keyword <- list()
+  metadata$keyword[[1]] <- "18S"
+  metadata$keyword[[2]] <- "protists"
+
+  metadata$geographicScope <- "global"
+  metadata$taxonomicScope <- "Eukaryota"
+  metadata$licence <- "MIT"
+  metadata$url <- "https://pr2-database.org/"
+  metadata$logo <- "https://pr2-database.org/img/pr2_logo_16_9_big.png"
+
+  yaml::write_yaml(metadata, file_gbif_yaml)
+
+  # Zip everything
+  zip::zip(
+    file_gbif_zip,
+    c(file_gbif_tsv, file_gbif_yaml),
+    root = version_directory,
+    include_directories = FALSE,
+    mode = "cherry-pick"
+  )
+
+  return(TRUE)
+}
 
 # pr2_export_all -----------------------------------------
 #' @title Export the PR2 database (all files)
@@ -838,61 +1497,67 @@ pr2_export_emu <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
 #' @param pr2_directory Directory above the versions directory
 #' @param version PR2 version as character (e.g. 5.0.0)
 #' @param taxo_levels_number Number of taxonomic levels
-#' @param traits_used Traits included in the database
+#' @param trait_types Traits included in the database
 #' @param test If true only 2000 sequences
+#' @param all_files If false only qs file
 #' @return
 #' Write the all the files in compressed format (.gz) or xlsx format
 #' @examples
-#' pr2_export_all(version = "5.0.0", test = TRUE)
+#' pr2_export_all(version = "5.0.0", test = TRUE, all_files = FALSE)
 #' @export
-pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
-                           version = "5.0.0",
-                           taxo_levels_number = 9,
-                           traits_used = c("mixoplankton") ,
-                           test=FALSE) {
-
+pr2_export_all <- function(
+  pr2_directory = "C:/daniel.vaulot@gmail.com/Databases/_PR2/",
+  version = "5.1.0",
+  taxo_levels_number = 9,
+  trait_types = c("mixoplankton"),
+  test = FALSE,
+  all_files = FALSE
+) {
   # Setup constant and directories
 
   taxo_levels[[taxo_levels_number]]
 
-  version_directory = str_c(pr2_directory, "versions/",version,"/")
+  version_directory = str_c(pr2_directory, "versions/", version, "/")
   dir.create(version_directory)
 
   # Files for export
   file_head <- str_c(version_directory, "pr2_version_", version)
 
-  file_merged_excel <- str_c(file_head,"_merged", ".xlsx")
+  file_merged_excel <- str_c(file_head, "_merged", ".xlsx")
 
-  file_chimera_excel <- str_c(file_head,"_chimera", ".xlsx")
-  file_taxonomy_excel <- str_c(file_head,"_taxonomy", ".xlsx")
-  file_unassigned_excel <- str_c(file_head,"_unassigned", ".xlsx")
-  file_updated <- str_c(file_head,"_updated", ".xlsx")
+  file_chimera_excel <- str_c(file_head, "_chimera", ".xlsx")
+  file_taxonomy_excel <- str_c(file_head, "_taxonomy", ".xlsx")
+  file_unassigned_excel <- str_c(file_head, "_unassigned", ".xlsx")
+  file_updated <- str_c(file_head, "_updated", ".xlsx")
 
   # Files for SSU export
-  file_SSU_fasta_UTAX = str_c(file_head,"_SSU_UTAX", ".fasta.gz")
-  file_SSU_fasta_taxo_long = str_c(file_head,"_SSU_taxo_long", ".fasta.gz")
-  file_SSU_fasta_mothur =  str_c(file_head,"_SSU_mothur", ".fasta.gz")
-  file_SSU_taxo_mothur <- str_c(file_head,"_SSU_mothur",".tax.gz")
-  file_SSU_fasta_dada2 =  str_c(file_head,"_SSU_dada2", ".fasta.gz")
+  file_SSU_fasta_UTAX = str_c(file_head, "_SSU_UTAX", ".fasta.gz")
+  file_SSU_fasta_taxo_long = str_c(file_head, "_SSU_taxo_long", ".fasta.gz")
+  file_SSU_fasta_mothur = str_c(file_head, "_SSU_mothur", ".fasta.gz")
+  file_SSU_taxo_mothur <- str_c(file_head, "_SSU_mothur", ".tax.gz")
+  file_SSU_fasta_dada2 = str_c(file_head, "_SSU_dada2", ".fasta.gz")
 
-  file_sqlite <- str_c(file_head,".sqlite")
-  file_qs <- str_c(version_directory,"pr2.qs")
+  file_sqlite <- str_c(file_head, ".sqlite")
+  file_qs <- str_c(version_directory, "pr2.qs")
 
   # Read the database
 
   pr2 <- list()
 
-  pr2$main <- pr2_read(taxo_levels_number, traits_used)
-  if(test) {pr2$main <- head(pr2$main, 2000)}
+  pr2$main <- pr2_read(taxo_levels_number, trait_types) |>
+    bind_rows(rod_read(taxo_levels_number, trait_types))
+  if (test) {
+    pr2$main <- head(pr2$main, 2000)
+  }
 
   pr2$chimera <- pr2$main %>%
     filter(!is.na(chimera)) %>%
-    select_if(~!all(is.na(.)))  # remove empty columns
+    select_if(~ !all(is.na(.))) # remove empty columns
 
   pr2_unassigned <- pr2$main %>%
     filter(is.na(removed_version)) %>%
     filter(is.na(species)) %>%
-    select_if(~!all(is.na(.)))  # remove empty columns
+    select_if(~ !all(is.na(.))) # remove empty columns
 
   # version_short <- str_c("^",str_sub(pr2.env$version, 1, 3))
   #
@@ -902,9 +1567,7 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
   #           str_detect(added_version, version_short),
   #           !is.na(species))
 
-
-
-# Filter out sequences that have been removed, quarantined, and sequences without species names
+  # Filter out sequences that have been removed, quarantined, and sequences without species names
   pr2$main <- pr2$main %>%
     filter(is.na(removed_version)) %>%
     filter(is.na(quarantined_version)) %>%
@@ -912,48 +1575,31 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
     select(-contains("chimera")) %>%
     select(-contains("bayes")) %>%
     select(-contains("boot")) %>%
-    select_if(~!all(is.na(.)))  # remove empty columns
+    select_if(~ !all(is.na(.))) # remove empty columns
+
+  # Counting operon and SSU sequences
+  count_SSU_sequences <- pr2$main |>
+    filter(gene != "operon_rRNA") |>
+    count(species, name = "n_sequences_SSU")
+
+  count_operon_sequences <- pr2$main |>
+    filter(gene == "operon_rRNA") |>
+    count(species, name = "n_sequences_operon")
 
   pr2$taxonomy <- pr2$main %>%
-    select(any_of(c(taxo_levels[[taxo_levels_number]], traits_used)), contains("worms")) %>%
-    count(across(everything()), name = "n_sequences") %>%
+    select(
+      any_of(c(taxo_levels[[taxo_levels_number]], trait_types)),
+      contains("worms"),
+      contains("gbif")
+    ) %>%
+    distinct() |>
+    left_join(count_SSU_sequences) |>
+    left_join(count_operon_sequences) |>
     arrange(across(any_of(taxo_levels[[taxo_levels_number]])))
 
+  # Saving the files -----
 
-# All sequences (merged file only)
-
-  print("Exporting merged file")
-
-  pr2_export(pr2$main, file_name=file_merged_excel, file_type="merged_excel", taxo_levels_number = taxo_levels_number)
-  # pr2_export(pr2$main, file_name=file_metadata, file_type="metadata")
-
-# All SSU sequences
-
-  print("Exporting all SSU")
-  #
-  pr2_export(pr2$main, file_name=file_SSU_fasta_UTAX, file_type="fasta", file_format="UTAX", taxo_levels_number = taxo_levels_number )
-
-  pr2_export(pr2$main, file_name=file_SSU_fasta_taxo_long, file_type="fasta", file_format="fasta_taxo_long", taxo_levels_number = taxo_levels_number)
-
-  pr2_export(pr2$main, file_name=file_SSU_fasta_mothur, file_type="fasta", file_format="mothur", taxo_levels_number = taxo_levels_number)
-  pr2_export(pr2$main, file_name=file_SSU_taxo_mothur, file_type="taxo", taxo_levels_number = taxo_levels_number)
-
-  pr2_export(pr2$main, file_name=file_SSU_fasta_dada2, file_type="fasta", file_format="dada2", taxo_levels_number = taxo_levels_number)
-
-  print("Exporting taxonomy, chimera and unassigned")
-
-  rio::export(pr2$taxonomy,  file=file_taxonomy_excel)
-  rio::export(pr2$chimera,  file=file_chimera_excel)
-  rio::export(pr2_unassigned,  file=file_unassigned_excel)
-  # rio::export(pr2_updated,  file=pr2.env$file_updated_excel)
-
-# SQLite - Uncomment for version 5.0.0
-
-  print("Exporting SQLite")
-  pr2_export_sqlite(pr2.env$file_sqlite)
-
-
-# R package - qs file
+  # R package - qs file - including operon and coi
 
   print("Exporting qs file")
 
@@ -963,10 +1609,82 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
 
   qs::qsave(pr2, file_qs)
 
+  # All SSU sequences
+  if (all_files) {
+    pr2$main <- pr2$main |>
+      filter(gene != "operon_rRNA")
 
+    # All sequences (merged file only) - only SSU
+
+    print("Exporting merged file")
+
+    pr2_export(
+      pr2$main,
+      file_name = file_merged_excel,
+      file_type = "merged_excel",
+      taxo_levels_number = taxo_levels_number
+    )
+    # pr2_export(pr2$main, file_name=file_metadata, file_type="metadata")
+
+    print("Exporting all SSU")
+
+    pr2_export(
+      pr2$main,
+      file_name = file_SSU_fasta_UTAX,
+      file_type = "fasta",
+      file_format = "UTAX",
+      taxo_levels_number = taxo_levels_number
+    )
+
+    pr2_export(
+      pr2$main,
+      file_name = file_SSU_fasta_taxo_long,
+      file_type = "fasta",
+      file_format = "fasta_taxo_long",
+      taxo_levels_number = taxo_levels_number
+    )
+
+    pr2_export(
+      pr2$main,
+      file_name = file_SSU_fasta_mothur,
+      file_type = "fasta",
+      file_format = "mothur",
+      taxo_levels_number = taxo_levels_number
+    )
+    pr2_export(
+      pr2$main,
+      file_name = file_SSU_taxo_mothur,
+      file_type = "taxo",
+      taxo_levels_number = taxo_levels_number
+    )
+
+    pr2_export(
+      pr2$main,
+      file_name = file_SSU_fasta_dada2,
+      file_type = "fasta",
+      file_format = "dada2",
+      taxo_levels_number = taxo_levels_number
+    )
+
+    print("Exporting taxonomy, chimera and unassigned")
+
+    rio::export(pr2$taxonomy, file = file_taxonomy_excel)
+    rio::export(pr2$chimera, file = file_chimera_excel)
+    rio::export(pr2_unassigned, file = file_unassigned_excel)
+    # rio::export(pr2_updated,  file=pr2.env$file_updated_excel)
+
+    # SQLite - Uncomment for version 5.0.0
+
+    # print("Exporting SQLite")
+    # pr2_export_sqlite(file_sqlite)
+  }
 }
 
+
 # pr2_export_qs -----------------------------------------
+
+# NOTE: this has been superseded by pr2_export_all(all_files = FALSE)
+
 #' #' @title Export the PR2 database to qs format
 #' #' @description
 #' #' This will save the pr2 database in qs format for web application. It calls \code{link{pr2_export}}
@@ -979,48 +1697,48 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
 #' #' @export
 #' pr2_export_qs <- function(taxo_levels_number = 9, directory) {
 
-  # taxo_levels_used <- taxo_levels[[taxo_levels_number]]
-  #
-  # # print(taxo_levels[[taxo_levels_number]])
-  #
-  # print("Reading database")
-  #
-  # pr2 <- list()
-  #
-  # pr2$main <- pr2_read(taxo_levels_number)
-  #
-  # pr2$chimera <- pr2$main %>%
-  #   filter(!is.na(chimera)) %>%
-  #   select_if(~!all(is.na(.)))  # remove empty columns
-  #
-  # # pr2$unassigned <- pr2$main %>%
-  # #   filter(is.na(removed_version)) %>%
-  # #   filter(is.na(species)) %>%
-  # #   select_if(~!all(is.na(.)))  # remove empty columns
-  #
-  # # Filter out sequences that have been removed, quarantined, and sequences without species names
-  # pr2$main <- pr2$main %>%
-  #   filter(is.na(removed_version)) %>%
-  #   filter(is.na(quarantined_version))%>%
-  #   filter(is.na(chimera)) %>%
-  #   filter(!is.na(!!as.name(taxo_levels_used[1])))%>% # In case taxonomy is not available
-  #   filter(!is.na(species)) %>%
-  #   select(-contains("chimera")) %>%
-  #   select(-contains("bayes")) %>%
-  #   select(-contains("boot")) %>%
-  #   select_if(~!all(is.na(.)))  # remove empty columns
-  #
-  # pr2$taxonomy <- pr2$main %>%
-  #   select(pr2_accession, any_of(taxo_levels_used)) %>%
-  #   count(across(any_of(taxo_levels_used)), name = "n_sequences") %>%
-  #   arrange(across(any_of(taxo_levels_used)))
-  #
-  #
-  # # All sequences (merged file only)
-  #
-  # print("Exporting qs file")
-  #
-  # qs::qsave(pr2, str_c(directory, "pr2.qs"))
+# taxo_levels_used <- taxo_levels[[taxo_levels_number]]
+#
+# # print(taxo_levels[[taxo_levels_number]])
+#
+# print("Reading database")
+#
+# pr2 <- list()
+#
+# pr2$main <- pr2_read(taxo_levels_number)
+#
+# pr2$chimera <- pr2$main %>%
+#   filter(!is.na(chimera)) %>%
+#   select_if(~!all(is.na(.)))  # remove empty columns
+#
+# # pr2$unassigned <- pr2$main %>%
+# #   filter(is.na(removed_version)) %>%
+# #   filter(is.na(species)) %>%
+# #   select_if(~!all(is.na(.)))  # remove empty columns
+#
+# # Filter out sequences that have been removed, quarantined, and sequences without species names
+# pr2$main <- pr2$main %>%
+#   filter(is.na(removed_version)) %>%
+#   filter(is.na(quarantined_version))%>%
+#   filter(is.na(chimera)) %>%
+#   filter(!is.na(!!as.name(taxo_levels_used[1])))%>% # In case taxonomy is not available
+#   filter(!is.na(species)) %>%
+#   select(-contains("chimera")) %>%
+#   select(-contains("bayes")) %>%
+#   select(-contains("boot")) %>%
+#   select_if(~!all(is.na(.)))  # remove empty columns
+#
+# pr2$taxonomy <- pr2$main %>%
+#   select(pr2_accession, any_of(taxo_levels_used)) %>%
+#   count(across(any_of(taxo_levels_used)), name = "n_sequences") %>%
+#   arrange(across(any_of(taxo_levels_used)))
+#
+#
+# # All sequences (merged file only)
+#
+# print("Exporting qs file")
+#
+# qs::qsave(pr2, str_c(directory, "pr2.qs"))
 
 #   print("Function removed")
 #
@@ -1064,73 +1782,103 @@ pr2_export_all <- function(pr2_directory = "C:/daniel.vaulot@gmail.com/Databases
 #' pr2_taxo_check (taxo_list, "C:/Daniel/database")
 #' @export
 #' @md
-pr2_taxo_check <- function(pr2_taxo, taxo_levels = taxo_levels[[taxo_levels_number]], dir_taxo="") {
-
+pr2_taxo_check <- function(
+  pr2_taxo,
+  taxo_levels = taxo_levels[[taxo_levels_number]],
+  dir_taxo = ""
+) {
   # Initialize variables
 
-    taxo_levels_number <- length(taxo_levels)
-    taxo_list <- list()
-    taxo_list_2_parents <- list()
+  taxo_levels_number <- length(taxo_levels)
+  taxo_list <- list()
+  taxo_list_2_parents <- list()
 
   # Extract all taxo levels
 
   # Level 1 - Kingdom or Domain
-    i <- 1
-    # print(taxo_levels[[1]])
-    taxo <- pr2_taxo %>%
-            group_by (!!as.name(taxo_levels[[1]])) %>%
-            summarise(taxa_number=n()) %>%
-            rename(name=!!as.name(taxo_levels[[1]]))
-    taxo$level<-i
-    taxo$id<-1:nrow(taxo)
-    taxo$parent_id<-0
-    taxo_list[[1]] <- taxo
-
+  i <- 1
+  # print(taxo_levels[[1]])
+  taxo <- pr2_taxo %>%
+    group_by(!!as.name(taxo_levels[[1]])) %>%
+    summarise(taxa_number = n()) %>%
+    rename(name = !!as.name(taxo_levels[[1]]))
+  taxo$level <- i
+  taxo$id <- 1:nrow(taxo)
+  taxo$parent_id <- 0
+  taxo_list[[1]] <- taxo
 
   # Level 2 to 8 or 9
 
-    for (i in c(2:taxo_levels_number)) {
-      taxo_list[[i]] <-pr2_extract_one_taxo_level(pr2_taxo,
-                                              taxo_levels[[i-1]],
-                                              taxo_levels[[i]],
-                                              i,
-                                              taxo_list[[i-1]])
-      write_tsv(taxo_list[[i]], path=str_c(dir_taxo,"/","taxo_list_", i, "_", taxo_levels[[i]], ".txt"))
-    }
+  for (i in c(2:taxo_levels_number)) {
+    taxo_list[[i]] <- pr2_extract_one_taxo_level(
+      pr2_taxo,
+      taxo_levels[[i - 1]],
+      taxo_levels[[i]],
+      i,
+      taxo_list[[i - 1]]
+    )
+    write_tsv(
+      taxo_list[[i]],
+      path = str_c(
+        dir_taxo,
+        "/",
+        "taxo_list_",
+        i,
+        "_",
+        taxo_levels[[i]],
+        ".txt"
+      )
+    )
+  }
 
   #  Find taxo levels that have more than one parent
   # Note : it is necessary to examine each file one by one going in descending order and rerun the script each time
 
-    for (i in c(2:taxo_levels_number)) {
-      taxo_list_2_parents[[i]] <- taxo_list[[i]] %>%
-                                  group_by (name) %>%
-                                  summarize (n_parents=n()) %>%
-                                  filter (n_parents>1)
-      write_tsv(taxo_list_2_parents[[i]],
-                  path=str_c(dir_taxo,"/","taxo_list_2_parents_", i, "_", taxo_levels[[i]], ".txt"))
-    }
+  for (i in c(2:taxo_levels_number)) {
+    taxo_list_2_parents[[i]] <- taxo_list[[i]] %>%
+      group_by(name) %>%
+      summarize(n_parents = n()) %>%
+      filter(n_parents > 1)
+    write_tsv(
+      taxo_list_2_parents[[i]],
+      path = str_c(
+        dir_taxo,
+        "/",
+        "taxo_list_2_parents_",
+        i,
+        "_",
+        taxo_levels[[i]],
+        ".txt"
+      )
+    )
+  }
 
   #  Find taxo names that are found at different levels
-     taxo_list_all <- taxo_list[[1]]
-     for (i in c(2:taxo_levels_number)) {
-      taxo_list_all <- rbind (taxo_list_all, taxo_list[[i]])
-    }
-     taxo_list_duplicate<- taxo_list_all %>%
-                           group_by (name) %>%
-                           summarize (n_found=n()) %>%
-                           filter ((n_found>1))
-     taxo_list_duplicate<-left_join(taxo_list_duplicate, taxo_list_all)
-     write_tsv(taxo_list_duplicate, path=str_c(dir_taxo,"/","taxo_level_duplicates", ".txt"))
+  taxo_list_all <- taxo_list[[1]]
+  for (i in c(2:taxo_levels_number)) {
+    taxo_list_all <- rbind(taxo_list_all, taxo_list[[i]])
+  }
+  taxo_list_duplicate <- taxo_list_all %>%
+    group_by(name) %>%
+    summarize(n_found = n()) %>%
+    filter((n_found > 1))
+  taxo_list_duplicate <- left_join(taxo_list_duplicate, taxo_list_all)
+  write_tsv(
+    taxo_list_duplicate,
+    path = str_c(dir_taxo, "/", "taxo_level_duplicates", ".txt")
+  )
 
   #  Find species that are duplicated in the species list - ERROR HERE TO CORRECT (refer to species hard coded)
-     cat("Lower taxo level: ", taxo_levels[[taxo_levels_number]])
+  cat("Lower taxo level: ", taxo_levels[[taxo_levels_number]])
 
-     taxo_species_duplicate<- pr2_taxo %>%
-                             group_by (!!as.name(taxo_levels[[taxo_levels_number]])) %>%
-                             summarize (n_found=n()) %>%
-                             filter (n_found>1)
-     write_tsv(taxo_species_duplicate, path=str_c(dir_taxo,"/","taxo_species_duplicates", ".txt"))
-
+  taxo_species_duplicate <- pr2_taxo %>%
+    group_by(!!as.name(taxo_levels[[taxo_levels_number]])) %>%
+    summarize(n_found = n()) %>%
+    filter(n_found > 1)
+  write_tsv(
+    taxo_species_duplicate,
+    path = str_c(dir_taxo, "/", "taxo_species_duplicates", ".txt")
+  )
 }
 
 
@@ -1162,20 +1910,31 @@ pr2_taxo_check <- function(pr2_taxo, taxo_levels = taxo_levels[[taxo_levels_numb
 #' genus_df <- pr2_extract_one_taxo_level(pr2_taxo, "family", "genus", 7, family_df)
 #' @export
 #' @md
-  pr2_extract_one_taxo_level <- function(pr2_taxo, level_above_name, level_name, level_number, taxo_above) {
-    taxo <-  pr2_taxo %>%
-                group_by(!!as.symbol(level_above_name), !!as.symbol(level_name)) %>%
-                summarise(n=n()) %>%
-                transmute(name= !!as.symbol(level_name), number_of_taxa=n)
-    taxo$level<-level_number
-    taxo <-merge(taxo, taxo_above, all.x, by.x=level_above_name, by.y="name")
-    taxo <- taxo %>%
-      transmute(name, taxa_number=number_of_taxa, level=level.x, parent_id = id) %>%
-      arrange(name) %>%
-      rowid_to_column( var = "id")
+pr2_extract_one_taxo_level <- function(
+  pr2_taxo,
+  level_above_name,
+  level_name,
+  level_number,
+  taxo_above
+) {
+  taxo <- pr2_taxo %>%
+    group_by(!!as.symbol(level_above_name), !!as.symbol(level_name)) %>%
+    summarise(n = n()) %>%
+    transmute(name = !!as.symbol(level_name), number_of_taxa = n)
+  taxo$level <- level_number
+  taxo <- merge(taxo, taxo_above, all.x, by.x = level_above_name, by.y = "name")
+  taxo <- taxo %>%
+    transmute(
+      name,
+      taxa_number = number_of_taxa,
+      level = level.x,
+      parent_id = id
+    ) %>%
+    arrange(name) %>%
+    rowid_to_column(var = "id")
 
-    return(taxo)
-  }
+  return(taxo)
+}
 
 # pr2_taxo_list -----------------------------------------
 
@@ -1190,11 +1949,10 @@ pr2_taxo_check <- function(pr2_taxo, taxo_levels = taxo_levels[[taxo_levels_numb
 #' pr2_taxo_list(pr2, "class")
 #' @export
 #' @md
-  pr2_taxo_list <- function(pr2, level_select) {
-
+pr2_taxo_list <- function(pr2, level_select) {
   taxo_list <- pr2 %>%
-                distinct_(level_select) %>%
-                arrange_(level_select)
+    distinct_(level_select) %>%
+    arrange_(level_select)
 
   return(taxo_list)
 }
@@ -1213,26 +1971,36 @@ pr2_taxo_check <- function(pr2_taxo, taxo_levels = taxo_levels[[taxo_levels_numb
 #' @export
 #' @md
 
-  pr2_taxo_X <- function(pr2_taxo, taxo_levels_number = 9) {
-
-    taxo_levels_used = taxo_levels[[taxo_levels_number]]
-
+pr2_taxo_X <- function(pr2_taxo, taxo_levels_number = 9) {
+  taxo_levels_used = taxo_levels[[taxo_levels_number]]
 
   for (i in 1:nrow(pr2_taxo)) {
     stem = ""
-    for (j in 1:(taxo_levels_number-1) ){
+    for (j in 1:(taxo_levels_number - 1)) {
       # Check first if the next level is equal to previous level which is stored in stem
-      if ((pr2_taxo[i,taxo_levels_used[j]]==stem) | (pr2_taxo[i,taxo_levels_used[j]]=="")| is.na(pr2_taxo[i,taxo_levels_used[j]])) {
-              # If true then add _XX where the number of X is proportional to the difference in number of columns since the start
-              pr2_taxo[i,taxo_levels_used[j]] <-  str_c(stem, "_", str_dup("X", j-stem_level))
-              # If we are at the end (species level) then use _XX_sp. there
-              if (j == taxo_levels_number-1) {
-                pr2_taxo[i,taxo_levels_used[j+1]] <-  str_c(stem,"_", str_dup("X", j-stem_level), "_sp.")
-                }
-            }
-      else {
+      if (
+        (pr2_taxo[i, taxo_levels_used[j]] == stem) |
+          (pr2_taxo[i, taxo_levels_used[j]] == "") |
+          is.na(pr2_taxo[i, taxo_levels_used[j]])
+      ) {
+        # If true then add _XX where the number of X is proportional to the difference in number of columns since the start
+        pr2_taxo[i, taxo_levels_used[j]] <- str_c(
+          stem,
+          "_",
+          str_dup("X", j - stem_level)
+        )
+        # If we are at the end (species level) then use _XX_sp. there
+        if (j == taxo_levels_number - 1) {
+          pr2_taxo[i, taxo_levels_used[j + 1]] <- str_c(
+            stem,
+            "_",
+            str_dup("X", j - stem_level),
+            "_sp."
+          )
+        }
+      } else {
         # If the level is not repeated then use it to check the next column
-        stem  <-  pr2_taxo[i,taxo_levels_used[j]]
+        stem <- pr2_taxo[i, taxo_levels_used[j]]
         stem_level <- j
       }
     }
@@ -1261,71 +2029,87 @@ pr2_taxo_check <- function(pr2_taxo, taxo_levels = taxo_levels[[taxo_levels_numb
 #' pr2_taxons <- pr2_buid_taxons(pr2_taxonomy, 9)
 #' @export
 #' @md
-pr2_buid_taxons <- function(pr2_taxonomy, taxo_levels = taxo_levels[[taxo_levels_number]], add_old_fields=FALSE) {
-
+pr2_buid_taxons <- function(
+  pr2_taxonomy,
+  taxo_levels = taxo_levels[[taxo_levels_number]],
+  add_old_fields = FALSE
+) {
   # Initialize variables
 
-    taxo_levels_number <- length(taxo_levels)
-    taxo_list <- list()
-    taxo_list_2_parents <- list()
+  taxo_levels_number <- length(taxo_levels)
+  taxo_list <- list()
+  taxo_list_2_parents <- list()
 
   # Extract all taxo levels
 
   # Level 1 - Kingdom
-    i <- 1
-    taxo <- pr2_taxonomy %>%
-            group_by (any_of(taxo_levels[1])) %>%
-            summarise(number_of_taxa=n())
-    taxo<-taxo %>%
-      transmute(name=domain, taxa_number=number_of_taxa)
-    taxo$level<-i
-    taxo$id<-1:nrow(taxo)
-    taxo$parent_id<-0
-    taxo_list[[1]] <- taxo
-
+  i <- 1
+  taxo <- pr2_taxonomy %>%
+    group_by(across(any_of(taxo_levels[1]))) %>%
+    summarise(number_of_taxa = n())
+  taxo <- taxo %>%
+    transmute(name = domain, taxa_number = number_of_taxa)
+  taxo$level <- i
+  taxo$id <- 1:nrow(taxo)
+  taxo$parent_id <- 0
+  taxo_list[[1]] <- taxo
 
   # Level 2 to 8
 
-    for (i in c(2:taxo_levels_number)) {
-      taxo_list[[i]] <-pr2_extract_one_taxo_level(pr2_taxonomy,
-                                              taxo_levels[[i-1]],
-                                              taxo_levels[[i]],
-                                              i,
-                                              taxo_list[[i-1]])
-     }
+  for (i in c(2:taxo_levels_number)) {
+    taxo_list[[i]] <- pr2_extract_one_taxo_level(
+      pr2_taxonomy,
+      taxo_levels[[i - 1]],
+      taxo_levels[[i]],
+      i,
+      taxo_list[[i - 1]]
+    )
+  }
 
   # Reduce the 8 lists to a single dataframe
-    pr2_taxons <- taxo_list %>% reduce (bind_rows)
+  pr2_taxons <- taxo_list %>% purrr::reduce(bind_rows)
 
   # Get a serial number for the taxons
-    pr2_taxons <- pr2_taxons %>% rowid_to_column(var="taxon_id")
+  pr2_taxons <- pr2_taxons %>% tibble::rowid_to_column(var = "taxon_id")
 
   # Now replace the parent_id by the new id
-    pr2_taxons_1 <- pr2_taxons %>% mutate(parent_level=level-1)
+  pr2_taxons_1 <- pr2_taxons %>% dplyr::mutate(parent_level = level - 1)
 
-    pr2_taxons_2 <- pr2_taxons %>% select(parent_id_new=taxon_id, level, id)
+  pr2_taxons_2 <- pr2_taxons %>%
+    dplyr::select(parent_id_new = taxon_id, level, id)
 
-    pr2_taxons_3 <- left_join(pr2_taxons_1, pr2_taxons_2, by = c("parent_level" = "level", "parent_id"="id"))
+  pr2_taxons_3 <- left_join(
+    pr2_taxons_1,
+    pr2_taxons_2,
+    by = c("parent_level" = "level", "parent_id" = "id")
+  )
 
   # Change the names
-    pr2_taxons_3 <- pr2_taxons_3 %>% select(taxon_id, taxon_name = name, taxon_level = level, parent_id = parent_id_new)
+  pr2_taxons_3 <- pr2_taxons_3 %>%
+    dplyr::select(
+      taxon_id,
+      taxon_name = name,
+      taxon_level = level,
+      parent_id = parent_id_new
+    )
 
   # Left join to recover the old information from the pr2_taxonomy table
 
-    if(add_old_fields==TRUE) {
-    pr2_taxo_1 <- pr2_taxo %>% select(old_species_id = taxo_id,
-                                      taxon_name=species,
-                                      taxon_edited_version = taxo_edited_version,
-                                      taxon_edited_by = taxo_edited_by,
-                                      taxon_removed_version = taxo_removed_version,
-                                      taxon_remark = taxo_remark,
-                                      taxon_reference = reference)
+  if (add_old_fields == TRUE) {
+    pr2_taxo_1 <- pr2_taxo %>%
+      dplyr::select(
+        old_species_id = taxo_id,
+        taxon_name = species,
+        taxon_edited_version = taxo_edited_version,
+        taxon_edited_by = taxo_edited_by,
+        taxon_removed_version = taxo_removed_version,
+        taxon_remark = taxo_remark,
+        taxon_reference = reference
+      )
     pr2_taxons_3 <- pr2_taxons_3 %>% left_join(pr2_taxo_1)
-    }
+  }
 
-
-    return(pr2_taxons_3)
-
+  return(pr2_taxons_3)
 }
 
 # pr2_build_taxonomy   ---------------
@@ -1348,38 +2132,37 @@ pr2_buid_taxons <- function(pr2_taxonomy, taxo_levels = taxo_levels[[taxo_levels
 #' pr2_taxo <- pr2_buil_taxonomy(pr2_taxons, 9)
 #' @export
 #' @md
-pr2_build_taxonomy <- function(pr2_taxons, taxo_levels = taxo_levels[[taxo_levels_number]]) {
-
-
+pr2_build_taxonomy <- function(
+  pr2_taxons,
+  taxo_levels = taxo_levels[[taxo_levels_number]]
+) {
   taxo_levels_number <- length(taxo_levels)
-   taxo_list <- list()
-   for (i in c(taxo_levels_number:1)){
-      # i=7
+  taxo_list <- list()
+  for (i in c(taxo_levels_number:1)) {
+    # i=7
     # Needs to transform the taxo_level string into an expression
-       rank_name = sym(taxo_levels[i])
+    rank_name = sym(taxo_levels[i])
 
     # Select one level of taxonomy and keep its ID and its Parent ID
-       taxo_list[[i]] <- pr2_taxons %>%
-         filter(taxon_level == i) %>%
-         dplyr::select(taxon_id, taxon_name, parent_id) %>%
-         mutate (!! rank_name := taxon_name) %>%
-         select(-taxon_name)
+    taxo_list[[i]] <- pr2_taxons %>%
+      filter(taxon_level == i) %>%
+      dplyr::select(taxon_id, taxon_name, parent_id) %>%
+      mutate(!!rank_name := taxon_name) %>%
+      select(-taxon_name)
 
     # For the last level (species) just take all the species. For the other levels do a join with next level (e.g. if genus, join to species)
-       if (i == taxo_levels_number) {
-         pr2_taxonomy <-  taxo_list[[i]]
-       } else {
-         pr2_taxonomy <- pr2_taxonomy %>%
-           left_join(taxo_list[[i]], by = c("parent_id"="taxon_id") ) %>%
-           select(-parent_id) %>%
-           rename(parent_id = parent_id.y)
-       }
-   }
+    if (i == taxo_levels_number) {
+      pr2_taxonomy <- taxo_list[[i]]
+    } else {
+      pr2_taxonomy <- pr2_taxonomy %>%
+        left_join(taxo_list[[i]], by = c("parent_id" = "taxon_id")) %>%
+        select(-parent_id) %>%
+        rename(parent_id = parent_id.y)
+    }
+  }
 
-    pr2_taxonomy <- pr2_taxonomy %>%
-      select_( .dots = c("taxon_id", taxo_levels))
+  pr2_taxonomy <- pr2_taxonomy %>%
+    select_(.dots = c("taxon_id", taxo_levels))
 
-    return(pr2_taxonomy)
-
+  return(pr2_taxonomy)
 }
-

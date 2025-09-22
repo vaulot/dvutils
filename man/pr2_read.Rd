@@ -4,10 +4,19 @@
 \alias{pr2_read}
 \title{Reads the whole PR2 database into a data frame}
 \usage{
-pr2_read(taxo_levels_number = 9, trait_types = c("mixoplankton"))
+pr2_read(
+  taxo_levels_number = 9,
+  trait_types = c("mixoplankton"),
+  keep_only_released_records = FALSE,
+  keep_all_fields = TRUE
+)
 }
 \arguments{
 \item{taxo_levels_number}{integer - number of taxonomic levels, 8 or 9}
+
+\item{trait_types}{character - which trait types to integrate}
+
+\item{keep_all_fields}{logical - if false, only get pr2_main, pr2_sequences and pr2_taxonomy}
 }
 \value{
 A data frame with all the columns from pr2.
@@ -15,8 +24,17 @@ A data frame with all the columns from pr2.
 \description{
 The database access codes is obtained with the function db_info("pr2_google").
 
-\strong{Important}: This gets the whole database, including sequences that have been removed.  These sequences must be filtered out before export using pr2  <- pr2 \%>\% filter (is.na(removed_version)). However the taxo entries that have been removed are already removed.
+\strong{Important}:
+If keep_only_released_records = FALSE
+This gets the whole database, including sequences that have been removed.
+These sequences must be filtered out before export
+using pr2  <- pr2 \%>\% filter (is.na(removed_version)).
+
+If keep_only_released_records = TRUE
+Only keeps record that makes it to the final release
+
+However the taxo entries that have been removed are already removed.
 }
 \examples{
-pr2 <- pr2_read(taxo_levels_number = 8)
+pr2 <- pr2_read(taxo_levels_number = 8, trait_types = c("mixoplankton"))
 }
