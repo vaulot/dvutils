@@ -59,9 +59,9 @@ rod_read <- function(taxo_levels_number = 9, trait_types = c("mixoplankton")) {
   # file_rod = str_c(pr2_directory, "rod.qs")
 
   # Read ROD database
-  pr2_db <- db_info("pr2_rod_google")
+  # pr2_db <- db_info("pr2_rod_google")
 
-  pr2_db_con <- db_connect(pr2_db)
+  pr2_db_con <- db_connect("pr2_rod")
 
   rod_operon_variants <- tbl(pr2_db_con, "ROD_1.2_operon_variants") |>
     filter(is.na(rod_removed_date)) |>
@@ -177,9 +177,9 @@ pr2_read <- function(
   print("Using pr2_google")
 
   # Info for the Google dabase
-  pr2_db <- db_info("pr2_google")
+  # pr2_db <- db_info("pr2_google")
 
-  pr2_db_con <- db_connect(pr2_db)
+  pr2_db_con <- db_connect("pr2")
 
   pr2_main <- tbl(pr2_db_con, "pr2_main") %>%
     collect() # %>%
@@ -349,7 +349,7 @@ pr2_taxo_read <- function() {
   print("Using pr2_google")
 
   # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_google"))
+  pr2_db_con <- db_connect("pr2")
 
   print("after connect")
 
@@ -383,7 +383,7 @@ pr2_taxo_full_read <- function(
   print("Using pr2_google")
 
   # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_google"))
+  pr2_db_con <- db_connect("pr2")
 
   print("after connect")
 
@@ -458,7 +458,7 @@ pr2_traits_read <- function() {
   print("Using pr2_google")
 
   # Read the PR2 full table including removed records
-  pr2_db_con <- db_connect(db_info("pr2_google"))
+  pr2_db_con <- db_connect("pr2")
 
   pr2_traits <- tbl(pr2_db_con, "pr2_traits") %>%
     collect()
@@ -657,7 +657,7 @@ pr2_colors_read <- function() {
   print("Using pr2_google")
 
   # Read the PR2 full tables including removed records
-  pr2_db_con <- db_connect(db_info("pr2_google"))
+  pr2_db_con <- db_connect("pr2")
 
   pr2_colors <- tbl(pr2_db_con, "pr2_colors") %>%
     collect()
@@ -1032,154 +1032,7 @@ pr2_export <- function(
   )
 }
 
-# pr2_export SQLite -----------------------------------------
-#' @title Export the PR2 database to a SQLite file
-#' @description
-#' This will save the pr2 database in SQLite database, the following tables
-#' * pr2_main
-#' * pr2_sequences
-#' * pr2_metadata
-#' * pr2_taxo
-#' * pr2_assign_bayes
-#' * pr2_traits
-#' * pr2_countries
-#' * pr2_primers
-#' * pr2_primer_sets
-#' * taxonomy_worms
-#' * eukribo_v2
-#' * pr2_taxonomy_5.0_8_levels
-#' @param file_name character - full path of file where to save
-#' @return
-#' TRUE is succesful
-#' @examples
-#' pr2_export_sqlite("pr2_google.sqlite")
-#' @export
-#' @md
 
-pr2_export_sqlite <- function(file_name) {
-  export_table_sqlite <- function(table_name, indexes = list()) {
-    table <- tbl(pr2_db_con, table_name) |>
-      collect()
-
-    copy_to(
-      sqlite_db_con,
-      table,
-      name = table_name,
-      indexes = indexes,
-      temporary = FALSE,
-      overwrite = TRUE
-    )
-  }
-
-  pr2_db_con <- db_connect(db_info("pr2_google"))
-  sqlite_db_con <- db_connect_sqlite(file_name)
-
-  # Read the PR2 full tables including removed records
-
-  export_table_sqlite(
-    "pr2_main",
-    list("pr2_accession", "genbank_accession", "species")
-  )
-  export_table_sqlite("pr2_taxonomy", list("taxo_id"))
-  export_table_sqlite("pr2_sequences", list("pr2_accession"))
-  export_table_sqlite("pr2_metadata", list("genbank_accession"))
-  export_table_sqlite("pr2_countries", list("pr2_country"))
-  export_table_sqlite("pr2_assign_silva", list("pr2_accession"))
-  export_table_sqlite("pr2_assign_bayes", list("pr2_accession"))
-  export_table_sqlite("pr2_traits", list("trait_id"))
-  export_table_sqlite("taxonomy_worms", list("AphiaID"))
-  export_table_sqlite("taxonomy_gbif", list("usageKey"))
-  export_table_sqlite("eukribo_v2", list("gb_accession"))
-  export_table_sqlite("pr2_primers", list("primer_id"))
-  export_table_sqlite("pr2_primer_sets", list("primer_set_id"))
-
-  db_disconnect(pr2_db_con)
-  db_disconnect(sqlite_db_con)
-
-  # Compress sqlite file
-
-  R.utils::gzip(file_name, overwrite = TRUE, remove = TRUE)
-
-  return(TRUE)
-}
-
-# pr2_export Duckdb -----------------------------------------
-#' @title Export the PR2 database to a Duckdb databasee
-#' @description
-#' This will save the pr2 database in Duckdb database as tables
-#' * pr2_main
-#' * pr2_sequences
-#' * pr2_metadata
-#' * pr2_taxo
-#' * pr2_assign_bayes
-#' * pr2_traits
-#' * pr2_countries
-#' * pr2_primers
-#' * pr2_primer_sets
-#' * taxonomy_worms
-#' * eukribo_v2
-#' * pr2_taxonomy_5.0_8_levels
-#' NOTE: duckdb file size is same as SQLite but cannot be read with DBeaver
-#'
-#' @param file_name character - full name where to save
-#' @return
-#' TRUE is successful
-#' @examples
-#' pr2_export_duckdb("Mydirectory/pr2.duckdb")
-#' @export
-#' @md
-
-pr2_export_duckdb <- function(file_name) {
-  # Function to export each table to duckdb
-
-  export_table_duckdb <- function(table_name, indexes = list()) {
-    # indexes are not used for the time being
-
-    # Read table from Google
-    table <- tbl(pr2_db_con, table_name) |>
-      collect()
-
-    # Export table to duckdb
-    duckdb::dbWriteTable(
-      duckdb_con,
-      name = table_name,
-      value = table,
-      overwrite = TRUE
-    )
-  }
-
-  # Connect to databases
-  pr2_db_con <- db_connect(db_info("pr2_google"))
-  duckdb_con <- dbConnect(duckdb::duckdb(dbdir = file_name))
-
-  # Ewport to duckdb
-  export_table_duckdb(
-    "pr2_main",
-    list("pr2_accession", "genbank_accession", "species")
-  )
-  export_table_duckdb("pr2_taxonomy", list("species"))
-  export_table_duckdb("pr2_sequences", list("pr2_accession"))
-  export_table_duckdb("pr2_metadata", list("genbank_accession"))
-  export_table_duckdb("pr2_countries", list("pr2_country"))
-  export_table_duckdb("pr2_assign_silva", list("pr2_accession"))
-  export_table_duckdb("pr2_assign_bayes", list("pr2_accession"))
-  export_table_duckdb("pr2_traits", list("trait_id"))
-  export_table_duckdb("taxonomy_worms", list("AphiaID"))
-  export_table_duckdb("taxonomy_gbif", list("usageKey"))
-  export_table_duckdb("eukribo_v2", list("gb_accession"))
-  export_table_duckdb("pr2_primers", list("primer_id"))
-  export_table_duckdb("pr2_primer_sets", list("primer_set_id"))
-
-  # Disonnect from databases
-  db_disconnect(pr2_db_con)
-  dbDisconnect(duckdb_con)
-
-  # Compress duckdb file
-
-  R.utils::gzip(file_name, overwrite = TRUE, remove = FALSE)
-
-  return(TRUE)
-}
 
 
 # pr2_export_emu -------------------------------------------------------
@@ -1681,68 +1534,6 @@ pr2_export_all <- function(
 }
 
 
-# pr2_export_qs -----------------------------------------
-
-# NOTE: this has been superseded by pr2_export_all(all_files = FALSE)
-
-#' #' @title Export the PR2 database to qs format
-#' #' @description
-#' #' This will save the pr2 database in qs format for web application. It calls \code{link{pr2_export}}
-#' #' @param taxo_levels_number int number of taxonomic levels
-#' #' @param directory string direcotry where to save the files
-#' #' @return
-#' #' Write the all the files in qs format
-#' #' @examples
-#' #' pr2_export_qs(8, "C:/Desktop/")
-#' #' @export
-#' pr2_export_qs <- function(taxo_levels_number = 9, directory) {
-
-# taxo_levels_used <- taxo_levels[[taxo_levels_number]]
-#
-# # print(taxo_levels[[taxo_levels_number]])
-#
-# print("Reading database")
-#
-# pr2 <- list()
-#
-# pr2$main <- pr2_read(taxo_levels_number)
-#
-# pr2$chimera <- pr2$main %>%
-#   filter(!is.na(chimera)) %>%
-#   select_if(~!all(is.na(.)))  # remove empty columns
-#
-# # pr2$unassigned <- pr2$main %>%
-# #   filter(is.na(removed_version)) %>%
-# #   filter(is.na(species)) %>%
-# #   select_if(~!all(is.na(.)))  # remove empty columns
-#
-# # Filter out sequences that have been removed, quarantined, and sequences without species names
-# pr2$main <- pr2$main %>%
-#   filter(is.na(removed_version)) %>%
-#   filter(is.na(quarantined_version))%>%
-#   filter(is.na(chimera)) %>%
-#   filter(!is.na(!!as.name(taxo_levels_used[1])))%>% # In case taxonomy is not available
-#   filter(!is.na(species)) %>%
-#   select(-contains("chimera")) %>%
-#   select(-contains("bayes")) %>%
-#   select(-contains("boot")) %>%
-#   select_if(~!all(is.na(.)))  # remove empty columns
-#
-# pr2$taxonomy <- pr2$main %>%
-#   select(pr2_accession, any_of(taxo_levels_used)) %>%
-#   count(across(any_of(taxo_levels_used)), name = "n_sequences") %>%
-#   arrange(across(any_of(taxo_levels_used)))
-#
-#
-# # All sequences (merged file only)
-#
-# print("Exporting qs file")
-#
-# qs::qsave(pr2, str_c(directory, "pr2.qs"))
-
-#   print("Function removed")
-#
-# }
 
 # pr2_taxo_check   ---------------
 #' @title Check taxonomy

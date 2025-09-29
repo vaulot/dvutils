@@ -4,7 +4,7 @@
 \alias{db_get_query}
 \title{Read a query into a dataframe.}
 \usage{
-db_get_query(database_info, query)
+db_get_query(database, query)
 }
 \arguments{
 \item{query}{Character - SQL Query}

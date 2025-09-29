@@ -161,8 +161,8 @@ rcc_customers <- function(customers_file)  {
 #' @md
 
 rcc_export <- function(export_directory = "C:/Databases/web_export/") {
-
-   db_con_rcc <- db_connect(db_info("rcc"))
+   db_config <- read_db_config(db_config_yaml="C:/daniel.vaulot@gmail.com/Databases/rcc_pc.yaml")
+   db_con_rcc <- db_connect("rcc")
 
    cultures <- tbl(db_con_rcc, "cultures") %>% collect()
    taxonomy <- tbl(db_con_rcc, "taxonomy") %>% collect()
@@ -188,7 +188,8 @@ rcc_export <- function(export_directory = "C:/Databases/web_export/") {
                     ORDER BY
                     cultures.rcc_id ASC,
                     products.`code` ASC"
-   products <- db_get_query(db_info("rcc"), product_query)
+   db_config <- read_db_config(db_config_yaml="C:/daniel.vaulot@gmail.com/Databases/rcc_pc.yaml")
+   products <- db_get_query("rcc", product_query)
 
 
    # For cultures which are not distributed only the collaborator conditioning is available and

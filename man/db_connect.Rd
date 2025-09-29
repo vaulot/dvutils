@@ -4,18 +4,18 @@
 \alias{db_connect}
 \title{Establish a connection database}
 \usage{
-db_connect(db_info)
+db_connect(db_name)
 }
 \arguments{
-\item{db_info}{list(default.file= ,groups= ,dbname= )}
+\item{db_name}{name of the database ("pr2", "metapr2", "rcc")}
 }
 \value{
 A database connection
 }
 \description{
-All connections parameters are stored into a my.conf file
+The \strong{db_config} must be read before using read_db_config
 }
 \examples{
-pr2_con <- db_connect(db_info("pr2_local"))
-test_con <- db_connect(list(default.file="my.cnf", groups="root" , dbname= "test"))
+db_config <- read_db_config("C:/daniel.vaulot/Databases/google_pc.yaml") # Must always use db_config
+pr2_con <- db_connect("pr2")
 }

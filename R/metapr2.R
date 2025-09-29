@@ -102,8 +102,8 @@ metapr2_export_asv <- function(gene="",
 
 
   # Read the database and already filter for selected records -------------------
-  metapr2_db <- db_info("metapr2_google")
-  metapr2_db_con <- db_connect(metapr2_db)
+  # metapr2_db <- db_info("metapr2_google")
+  metapr2_db_con <- db_connect("metapr2")
 
   # Get all the asv (filtration is now done latter)
 
@@ -449,8 +449,8 @@ metapr2_export_datasets <- function() {
 
 # Read the database
 
-  metapr2_db <- db_info("metapr2_google")
-  metapr2_db_con <- db_connect(metapr2_db)
+  # metapr2_db <- db_info("metapr2_google")
+  metapr2_db_con <- db_connect("metapr2")
   metapr2_datasets <- tbl(metapr2_db_con, "metapr2_datasets") %>% collect()
   db_disconnect(metapr2_db_con)
 
@@ -473,8 +473,8 @@ metapr2_export_metadata <- function() {
 
 # Read the database
 
-  metapr2_db <- db_info("metapr2_google")
-  metapr2_db_con <- db_connect(metapr2_db)
+  # metapr2_db <- db_info("metapr2_google")
+  metapr2_db_con <- db_connect("metapr2")
   metapr2_metadata <- tbl(metapr2_db_con, "metapr2_metadata") %>% collect()
   db_disconnect(metapr2_db_con)
 
@@ -510,8 +510,8 @@ metapr2_export_reads_total <- function(directory = "C:/daniel.vaulot@gmail.com/D
 
 
 # Read the database and already filter for selected records
-  metapr2_db <- db_info("metapr2_google")
-  metapr2_db_con <- db_connect(metapr2_db)
+  # metapr2_db <- db_info("metapr2_google")
+  metapr2_db_con <- db_connect("metapr2")
 
 # Get the asv filtered by datasets
   asv_set <- tbl(metapr2_db_con, "metapr2_asv")%>%
@@ -757,8 +757,8 @@ metapr2_export_qs <- function(set_type = "public 3.0",
   # Cluster -------------------
 
   if (do_cluster) {
-    metapr2_db <- dvutils::db_info("metapr2_google")
-    metapr2_db_con <- dvutils::db_connect(metapr2_db)
+    # metapr2_db <- dvutils::db_info("metapr2_google")
+    metapr2_db_con <- dvutils::db_connect("metapr2")
 
     clusters <- tbl(metapr2_db_con, "metapr2_asv_clusters") %>%
       collect()

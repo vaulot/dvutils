@@ -123,7 +123,7 @@ blast_18S_reformat <- function(file_name){
 
 # 1. Create the database connection
 # Use the local PR2 database
-  pr2_db_con <- db_connect(db_info("pr2_local"))
+  pr2_db_con <- db_connect("pr2")
 
 # 2. Connect to table gb_taxonomy
   gb_taxo <-tbl(pr2_db_con, "gb_taxonomy")
@@ -358,7 +358,7 @@ blast_summary <- function(file_name){
 
 # 1. Create the database connection
 # Use the local PR2 database
-  pr2_db_con <- db_connect(db_info("pr2_local"))
+  pr2_db_con <- db_connect("pr2")
 
 # 2. Connect to table gb_taxonomy
   gb_taxo <-tbl(pr2_db_con, "gb_taxonomy")

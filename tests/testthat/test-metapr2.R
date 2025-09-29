@@ -66,6 +66,11 @@ test_that("metapr2 asv export ", {
 #                     use_hash = FALSE,
 #                     sum_reads_min = 0)
 
+  # It is now necessary to read the database configuration before any operation
+  db_config <- read_db_config(db_config_yaml="C:/daniel.vaulot@gmail.com/Databases/google_pc.yaml")
+  db_config <- read_db_config(db_config_yaml="C:/daniel.vaulot@gmail.com/Databases/duckdb_pc.yaml")
+  print(db_config)
+
   metapr2_export_asv( taxo_level = domain,
                       taxo_name = "Eukaryota",
                       dataset_id_selected = 1,

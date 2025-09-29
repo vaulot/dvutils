@@ -29,9 +29,6 @@ This check the taxonomy for the following conditions:
 \item Not taxon appears at different ranks
 }
 }
-\details{
-
-}
 \note{
 The input data frame does not need to be the whole pr2 taxo, can be taxo extracted from an Excel file.
 Several files are produced:
